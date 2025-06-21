@@ -1,35 +1,28 @@
+from ai import ai_resolver
+import asyncio
+
+# Use a tuple of sorted words as the key to avoid duplicates and enable O(1) lookup
 cache = {
-        "word1": 'word1',
-        "word2": 'word2',
-        "winner": 'word1'  # or 'word2'
+    tuple(sorted(["word1", "word2"])): ("word1", "word2"),  
 }
 
-
-
-
-
-
-def determine_winner(word1, word2):
+async def determine_winner(word1, word2):
     """
-    Check if combination of two words are present in the cache, and return the winnr based on the cache.
-    If not present, call another function called get_winner_from_api to get the winner from an external API.
-    cache = {
-    "word1": 'word1',
-    "word2": 'word2',
-    "winner": 'word1'  # or 'word2'
-    }
+    Check if combination of two words is present in the cache, and return the winner based on the cache.
+    If not present, use AI and add the result to the cache.
     """
-    key = f"{word1}_{word2}"
+    key = tuple(sorted([word1, word2]))
     if key in cache:
-        return cache[key]['winner']
-    winner = get_winner_from_api(word1, word2)
-    cache[key] = {
-        'word1': word1,
-        'word2': word2,
-        'winner': winner
-    }
-    return winner
+        return cache[key]
+    result = await ai_resolver.determine_winner(word1, word2)
+    cache[key] = result
+    return result
 
-
-
-print(determine_winner('word1', 'word2'))  # Should print 'word1' based on the cache
+if __name__ == "__main__":
+    print(asyncio.run(determine_winner('word1', 'word2')))  # Should print ('word1', 'word2')
+    print(asyncio.run(determine_winner('word2', 'word1')))  # Should print ('word1', 'word2')
+    print(asyncio.run(determine_winner('abhi', 'joseph')))
+    print(asyncio.run(determine_winner('joseph', 'abhi')))
+    print(asyncio.run(determine_winner('joseph', 'abhi')))
+    print(asyncio.run(determine_winner('abhi', 'joseph')))
+    print(cache)
