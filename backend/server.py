@@ -137,7 +137,8 @@ minions = {}  # All minions in the game, indexed by unique ID
 WORLD_WIDTH = 4000  # Increased from 2000 to accommodate 50 players
 WORLD_HEIGHT = 3000  # Increased from 1500 to accommodate 50 players
 MINION_SIZE = 45
-FLEET_SIZE = 5
+FLEET_SIZE = 5  # Spawn with 5 minions
+MAX_FLEET_SIZE = 50  # Maximum 50 minions per player
 INITIAL_SIZE = 50  # Initial size for respawned players
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
@@ -272,6 +273,14 @@ async def handle_minion_collision(minion1, minion2):
     winner = minion1 if winner_name == minion1.original_name else minion2
     loser = minion2 if winner == minion1 else minion1
 
+    # Check if winner's fleet is already at maximum size
+    winner_owner = players.get(winner.owner_id)
+    if winner_owner:
+        winner_fleet_size = len(winner_owner.get_owned_minions())
+        if winner_fleet_size >= MAX_FLEET_SIZE:
+            # Winner's fleet is at maximum size, no infection occurs
+            return
+
     print(f"AI determined '{winner.original_name}' wins over '{original_loser_name}' - infecting!")
     
     # Preserve the loser's data before it's changed
@@ -295,6 +304,11 @@ async def handle_minion_collision(minion1, minion2):
     old_owner = players.get(old_owner_id)
     if old_owner and len(old_owner.get_owned_minions()) == 0:
         # Player has lost all minions - they're eliminated
+        # Remove any remaining minions that still belong to this player
+        minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == old_owner_id]
+        for m_id in minions_to_remove:
+            del minions[m_id]
+        
         await sio.emit('player_eliminated', {
             'player_id': old_owner_id,
             'player_name': old_owner.name
@@ -426,7 +440,25 @@ async def change_name(sid, data):
         
         print(f'Player {new_name} respawned with {FLEET_SIZE} new minions')
     elif not same_name:
-        # Just notify about name change for existing players
+        # Update all minions that were originally owned by this player
+        for minion in minions.values():
+            if minion.original_name == old_name:
+                minion.original_name = new_name
+        
+        # Send updated game state to ALL players to ensure synchronization
+        game_state_data = {
+            'players': [p.to_dict() for p in players.values()],
+            'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+            'all_minions': [m.to_dict() for m in minions.values()],
+        }
+        
+        # Send to all players to keep everyone in sync
+        await sio.emit('update_game_state', {
+            'players': game_state_data['players'],
+            'all_minions': game_state_data['all_minions']
+        })
+        
+        # Also send the name change notification for chat
         await sio.emit('player_name_changed', {
             'player_id': sid,
             'old_name': old_name,
@@ -525,19 +557,18 @@ async def game_loop():
                 
                 if direction_magnitude > 1:  # If the cursor is not on the player
                     # Calculate fleet size speed multiplier
-                    # Small fleets (1-3 minions) = very fast (1.5x-2x speed)
-                    # Medium fleets (4-8 minions) = normal speed (1x)
-                    # Large fleets (9+ minions) = slower (0.5x-0.8x speed)
+                    # Highest speed: 1.0x (baseline)
+                    # Worst case: 0.95x (95% of highest speed) - much less severe debuff
                     minion_count = len(owned_minions)
                     if minion_count <= 3:
-                        # Small fleets are very agile
-                        speed_multiplier = 2.0 - (minion_count - 1) * 0.25  # 2x -> 1.5x
+                        # Small fleets are very agile (1.0x speed)
+                        speed_multiplier = 1.0
                     elif minion_count <= 8:
-                        # Medium fleets have normal speed
-                        speed_multiplier = 1.5 - (minion_count - 4) * 0.1  # 1.5x -> 1x
+                        # Medium fleets have very slight speed reduction
+                        speed_multiplier = 1.0 - (minion_count - 3) * 0.005  # 1.0x -> 0.975x
                     else:
-                        # Large fleets are slower but capped at 0.5x minimum
-                        speed_multiplier = max(0.5, 1.0 - (minion_count - 8) * 0.05)
+                        # Large fleets are only slightly slower, capped at 0.95x minimum
+                        speed_multiplier = max(0.95, 0.975 - (minion_count - 8) * 0.002)
                     
                     # Calculate displacement based on speed, time, and fleet size
                     displacement = BASE_MAX_SPEED * delta_time * speed_multiplier
@@ -595,8 +626,13 @@ async def game_loop():
                         
                         if target_magnitude > 0:
                             # Combine target movement with cohesion and separation
-                            move_x = (target_dx / target_magnitude) * displacement * 0.6 + cohesion_dx + separation_dx
-                            move_y = (target_dy / target_magnitude) * displacement * 0.6 + cohesion_dy + separation_dy
+                            # Increase target movement factor and reduce cohesion/separation impact for large fleets
+                            target_factor = 0.8  # Increased from 0.6
+                            cohesion_factor = 0.1 if minion_count <= 5 else 0.05  # Reduce cohesion for large fleets
+                            separation_factor = 0.1 if minion_count <= 5 else 0.05  # Reduce separation for large fleets
+                            
+                            move_x = (target_dx / target_magnitude) * displacement * target_factor + cohesion_dx * cohesion_factor + separation_dx * separation_factor
+                            move_y = (target_dy / target_magnitude) * displacement * target_factor + cohesion_dy * cohesion_factor + separation_dy * separation_factor
                             
                             minion.x += move_x
                             minion.y += move_y

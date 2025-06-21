@@ -479,6 +479,13 @@ class AgarioGame {
                 // Immediately mark the player as dead so they disappear
                 player.is_dead = true;
                 this.addChatMessage(`${player.name} was eliminated!`, 'elimination');
+                
+                // Remove all minions that belong to this eliminated player
+                for (const [minionId, minion] of this.minions.entries()) {
+                    if (minion.owner_id === data.player_id) {
+                        this.minions.delete(minionId);
+                    }
+                }
             }
             if (data.player_id === this.myPlayerId) {
                 // Current player was eliminated - show respawn modal

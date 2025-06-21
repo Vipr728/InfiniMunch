@@ -346,5 +346,29 @@
     "('godlike abhi', 'godlike abhi eater')": [
         "godlike abhi eater",
         "godlike abhi"
+    ],
+    "('better george', 'george')": [
+        "better george",
+        "george"
+    ],
+    "('better george', 'george killer')": [
+        "better george",
+        "george killer"
+    ],
+    "('george', 'weak geroge')": [
+        "george",
+        "weak geroge"
+    ],
+    "('george', 'gero')": [
+        "george",
+        "gero"
+    ],
+    "('stronggeorge', 'weak george')": [
+        "stronggeorge",
+        "weak george"
+    ],
+    "('diff', 'stronggeorge')": [
+        "stronggeorge",
+        "diff"
     ]
 }
