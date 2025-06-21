@@ -130,8 +130,8 @@ app.router.add_get('/{path:.*}', static_handler)
 # Game state
 players = {}
 minions = {}  # All minions in the game, indexed by unique ID
-WORLD_WIDTH = 2000
-WORLD_HEIGHT = 1500
+WORLD_WIDTH = 4000  # Increased from 2000 to accommodate 50 players
+WORLD_HEIGHT = 3000  # Increased from 1500 to accommodate 50 players
 MINION_SIZE = 45
 FLEET_SIZE = 5
 INITIAL_SIZE = 50  # Initial size for respawned players

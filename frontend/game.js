@@ -10,8 +10,8 @@ class AgarioGame {
         this.myPlayerId = null;
         this.mouseX = 0;
         this.mouseY = 0;
-        this.worldWidth = 2000;
-        this.worldHeight = 1500;
+        this.worldWidth = 4000;  // Increased from 2000 to accommodate 50 players
+        this.worldHeight = 3000;  // Increased from 1500 to accommodate 50 players
         this.baseViewWidth = window.innerWidth;
         this.baseViewHeight = window.innerHeight;
         this.viewWidth = this.baseViewWidth;
@@ -32,12 +32,14 @@ class AgarioGame {
         
         // Special items system
         this.specialItems = new Map(); // item_id -> { x, y, type, adjective, collected }
+        this.originalPlayerName = null; // Store the original name separately
         this.adjectives = [
-            'Nonchalant', 'Strong', 'Shadow', 'Golden', 'Crystal', 'Startup-Accelerating', 'Buff', 'Weak-Like-Abhi',
-            'Cooked', 'High-WPM', 'FAANG', 'Indian', 'Epic', 'Brain-Rotted', 'Infernal', 'Underdeveloped',
-            'NeoVim-Using', 'Ethereal', '💀', 'Spatial', 'AI-Generated', 'Arch-Linux-Using', 'Cyber', 'MCP-Integrated',
-            'Rizzing', 'Obsidian', 'Hackathon-Winning', 'Terrible', 'Heavy', 'Diamond', 'Large', 'Currently-Cramping',
-            'Vibe-Coding', 'Merge-Conflicting',
+            'Nonchalant', 'Strong', 'Tall', 'Laptop-Sticker-Collecting', 'Crystal', 'Startup-Accelerating', 'Buff', 'Weak-Like-Abhi',
+            'Cooked', 'High-WPM', 'FAANG', 'Indian 🇮🇳🇮🇳🇮🇳', 'American 🦅🦅🇺🇸🇺🇸', 'Brain-Rotted', 'Infernal', 'Underdeveloped',
+            'NeoVim-Using', 'Ethereal', '💀', 'AI-Generated', 'Arch-Linux-Using', 'Cyber', 'MCP-Integrated',
+            'Rizzing', 'Obsidian', 'Hackathon-Winning', 'Terrible', 'Large', 'Currently-Cramping',
+            'Vibe-Coding', 'Merge-Conflicting', 'Terminally-Online', 'Sigma', 'API-Breaking', 'Uncaffeinated', 'Caffeinated', 'DDoS-Vulnerable',
+            'Intern-Coded', 'Clean-Coded', 'LinkedIn-Posting',
         ];
         
         this.init();
@@ -519,10 +521,13 @@ class AgarioGame {
             return;
         }
         
+        // Store the original name
+        this.originalPlayerName = playerName;
+        
         document.getElementById('joinButton').disabled = true;
         this.socket.emit('join_game', { name: playerName });
         this.myPlayerId = this.socket.id;
-        // Don't show game screen immediately - wait for game_state confirmation
+        this.showGame();
     }
     
     showMenu() {
@@ -986,17 +991,15 @@ class AgarioGame {
     }
     
     showNameChangeModal(currentName) {
+        // Use the stored original name (which could be multiple words)
+        const originalName = this.originalPlayerName || currentName;
+        
         const nameInput = document.getElementById('newPlayerName');
-        nameInput.value = currentName;
+        nameInput.value = originalName;
+        nameInput.select();
+        nameInput.focus();
         
         document.getElementById('nameChangeModal').classList.remove('hidden');
-        
-        // Use setTimeout to ensure the modal is visible before focusing
-        // This helps with browser focus policies and modal animations
-        setTimeout(() => {
-            nameInput.focus();
-            nameInput.select(); // This will select all text so user can just type or press Enter
-        }, 10);
     }
     
     hideNameChangeModal() {
@@ -1013,8 +1016,18 @@ class AgarioGame {
         }
         
         if (this.socket && this.socket.connected) {
-            console.log('Requesting respawn with name:', newName);
-            this.socket.emit('change_name', { name: newName });
+            // Update the stored original name
+            this.originalPlayerName = newName;
+            
+            // First change the name if it's different
+            const currentPlayer = this.players.get(this.myPlayerId);
+            if (currentPlayer && currentPlayer.name !== newName) {
+                // Clear current game state before respawning
+                this.players.clear();
+                this.minions.clear();
+                
+                this.socket.emit('change_name', { name: newName });
+            }
             
             // Then respawn
             this.socket.emit('respawn_player', {});
@@ -1232,12 +1245,12 @@ class AgarioGame {
             setTimeout(() => this.spawnSpecialItem(), i * 2000); // Spawn 3 items over 6 seconds
         }
         
-        // Continue spawning items every 15-25 seconds
+        // Continue spawning items every 10-17 seconds (reduced from 15-25 seconds for 1.5x faster spawning)
         setInterval(() => {
             if (this.specialItems.size < 5) { // Max 5 items at once
                 this.spawnSpecialItem();
             }
-        }, 15000 + Math.random() * 10000);
+        }, 20000 + Math.random() * 2000); // 10-17 seconds instead of 15-25 seconds
     }
 }
 
