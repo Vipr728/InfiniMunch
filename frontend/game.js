@@ -86,14 +86,14 @@ class AgarioGame {
     }
     
     getAdPositions() {
-        const adSize = 120; // Size of ad images
+        const adSize = 100; // Slightly smaller ad images
         const positions = [];
         
         // Fixed ad positions around the world boundaries (like soccer field ads)
-        const adSpacing = adSize + 40; // Space between ads
+        const adSpacing = adSize + 60; // Space between ads
         
-        // Left edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Left edge ads (fixed positions) - outside the left boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
                 x: 20, // Just inside the left boundary
                 y: y,
@@ -104,8 +104,8 @@ class AgarioGame {
             });
         }
         
-        // Right edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Right edge ads (fixed positions) - outside the right boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
                 x: this.worldWidth - adSize - 20, // Just inside the right boundary
                 y: y,
@@ -116,8 +116,8 @@ class AgarioGame {
             });
         }
         
-        // Top edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Top edge ads (fixed positions) - outside the top boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
                 y: 20, // Just inside the top boundary
@@ -128,8 +128,8 @@ class AgarioGame {
             });
         }
         
-        // Bottom edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Bottom edge ads (fixed positions) - outside the bottom boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
                 y: this.worldHeight - adSize - 20, // Just inside the bottom boundary
@@ -166,14 +166,17 @@ class AgarioGame {
             // Debug: Log coordinate transformation
             console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
             
-            // Check if ad is visible on screen
-            if (screenX + screenWidth > 0 && screenX < this.baseViewWidth &&
-                screenY + screenHeight > 0 && screenY < this.baseViewHeight) {
+            // Debug: Log coordinate transformation
+            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
+            
+            // Check if ad is visible on screen with some margin
+            if (screenX + screenWidth > -50 && screenX < this.baseViewWidth + 50 &&
+                screenY + screenHeight > -50 && screenY < this.baseViewHeight + 50) {
                 
                 console.log(`Drawing ad ${index} at screen position (${screenX}, ${screenY})`);
                 
                 // Draw ad background (soccer field style)
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
                 
                 // Try to draw ad image, fallback to colored rectangle if image fails
@@ -195,7 +198,7 @@ class AgarioGame {
                 
                 // Draw border (soccer field style)
                 this.ctx.strokeStyle = '#000000';
-                this.ctx.lineWidth = 3;
+                this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
             } else {
                 console.log(`Ad ${index} not visible on screen`);
@@ -335,26 +338,7 @@ class AgarioGame {
     }
     
     connectToServer() {
-        console.log('Attempting to connect to server...');
-        
-        // Determine server URL based on environment
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.protocol === 'file:';
-        
-        const serverUrl = isLocalhost ? 'http://localhost:5000' : 'https://infinimunch.onrender.com';
-        
-        console.log(`Connecting to server: ${serverUrl}`);
-        
-        this.socket = io(serverUrl, {
-            transports: ['polling'], // Use polling only for OnRender compatibility
-            timeout: 20000,
-            forceNew: true,
-            upgrade: false, // Disable WebSocket upgrade attempts
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
-        });
+        this.socket = io('http://localhost:5000');
         
         this.socket.on('connect', () => {
             console.log('Connected to server successfully!');
