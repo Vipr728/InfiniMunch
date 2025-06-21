@@ -213,7 +213,7 @@ class Player:
             offset_x = math.cos(angle) * 50  # 50 pixel radius
             offset_y = math.sin(angle) * 50
             
-            minion_id = f"{self.id}_minion_{i}"
+            minion_id = f"{self.id}_minion_{i}_{int(time.time() * 1000000)}"
             minion = Minion(
                 minion_id=minion_id,
                 original_name=self.name,
@@ -343,13 +343,20 @@ async def join_game(sid, data):
     players[sid] = player
     
     # Send current game state to new player
-    await sio.emit('game_state', {
+    game_state_data = {
         'players': [p.to_dict() for p in players.values()],
         'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
         'all_minions': [m.to_dict() for m in minions.values()],
-    }, room=sid)
+    }
+    await sio.emit('game_state', game_state_data, room=sid)
     
-    # Notify others about new player
+    # Send updated game state to ALL other players so they can see the new player and their minions
+    await sio.emit('update_game_state', {
+        'players': game_state_data['players'],
+        'all_minions': game_state_data['all_minions']
+    }, skip_sid=sid)
+    
+    # Also send the join message for chat
     await sio.emit('player_joined', player.to_dict(), skip_sid=sid)
     
     print(f'Player {player_name} joined the game with {FLEET_SIZE} minions')
@@ -391,8 +398,9 @@ async def change_name(sid, data):
     if len(owned_minions) == 0:
         print(f'Respawning eliminated player {old_name} as {new_name}')
         
-        # Remove old minions that might still have the old name
-        minions_to_remove = [m_id for m_id, m in minions.items() if m.original_name == old_name]
+        # Remove only the minions that are still owned by this player
+        # (Don't remove infected minions that now belong to other players)
+        minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
         for m_id in minions_to_remove:
             del minions[m_id]
         
@@ -418,11 +426,6 @@ async def change_name(sid, data):
         
         print(f'Player {new_name} respawned with {FLEET_SIZE} new minions')
     elif not same_name:
-        # Update all minions that were originally owned by this player
-        for minion in minions.values():
-            if minion.original_name == old_name:
-                minion.original_name = new_name
-        
         # Just notify about name change for existing players
         await sio.emit('player_name_changed', {
             'player_id': sid,

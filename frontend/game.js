@@ -452,27 +452,21 @@ class AgarioGame {
         });
         
         this.socket.on('update_game_state', (data) => {
-            // Update players
+            // Update players - add new players if they don't exist
             data.players.forEach(playerData => {
-                const p = this.players.get(playerData.id);
-                if (p) {
-                    Object.assign(p, playerData);
-                }
+                this.players.set(playerData.id, playerData);
             });
             
-            // Update minions
+            // Update minions - add new minions if they don't exist
             data.all_minions.forEach(minionData => {
-                const m = this.minions.get(minionData.id);
-                if (m) {
-                    Object.assign(m, minionData);
-                }
+                this.minions.set(minionData.id, minionData);
             });
             
             this.updateUI();
         });
         
-        this.socket.on('minion_infection', (data) => {
-            console.log('Minion infection:', data);
+        this.socket.on('infection_happened', (data) => {
+            console.log('Infection happened:', data);
             // Update the affected minions
             this.minions.set(data.winner.id, data.winner);
             this.minions.set(data.loser.id, data.loser);
