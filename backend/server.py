@@ -63,6 +63,7 @@ WORLD_WIDTH = 2000
 WORLD_HEIGHT = 1500
 MINION_SIZE = 45
 FLEET_SIZE = 5
+INITIAL_SIZE = 50  # Initial size for respawned players
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
 BASE_MAX_SPEED = 200.0    # Base speed for minions
@@ -338,6 +339,18 @@ async def change_name(sid, data):
         
         print(f'Player {old_name} changed name to {new_name}')
 
+def is_within_rounded_bounds(x, y, size):
+    """Check if a position is within the rounded world bounds"""
+    # For now, just check rectangular bounds since we don't have rounded corners implemented
+    return size/2 <= x <= WORLD_WIDTH - size/2 and size/2 <= y <= WORLD_HEIGHT - size/2
+
+def clamp_to_rounded_bounds(x, y, size):
+    """Clamp a position to be within the rounded world bounds"""
+    # For now, just clamp to rectangular bounds
+    clamped_x = max(size/2, min(WORLD_WIDTH - size/2, x))
+    clamped_y = max(size/2, min(WORLD_HEIGHT - size/2, y))
+    return clamped_x, clamped_y
+
 @sio.event
 async def respawn_player(sid, data):
     """Handle player respawn request"""
@@ -548,4 +561,6 @@ app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    aiohttp.web.run_app(app, host='infinimunch.onrender.com', port=5000)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    aiohttp.web.run_app(app, host='0.0.0.0', port=port)

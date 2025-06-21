@@ -307,7 +307,7 @@ class AgarioGame {
     }
     
     connectToServer() {
-        this.socket = io('http://infinimuch.onrender.com');
+        this.socket = io('https://infinimunch.onrender.com');
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
