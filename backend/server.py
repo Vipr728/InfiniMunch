@@ -36,18 +36,17 @@ app = aiohttp.web.Application()
 sio.attach(app)
 
 # Add CORS middleware
-async def cors_middleware(app, handler):
-    async def middleware(request):
-        if request.method == 'OPTIONS':
-            response = aiohttp.web.Response()
-        else:
-            response = await handler(request)
-        
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response
-    return middleware
+@aiohttp.web.middleware
+async def cors_middleware(request, handler):
+    if request.method == 'OPTIONS':
+        response = aiohttp.web.Response()
+    else:
+        response = await handler(request)
+    
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
 
 app.middlewares.append(cors_middleware)
 
@@ -70,7 +69,9 @@ async def test_endpoint(request):
 async def index_handler(request):
     """Serve the main HTML file"""
     try:
-        with open('../frontend/index.html', 'r', encoding='utf-8') as f:
+        # Use different paths based on environment
+        frontend_path = 'frontend/index.html' if os.path.exists('frontend/index.html') else '../frontend/index.html'
+        with open(frontend_path, 'r', encoding='utf-8') as f:
             content = f.read()
         return aiohttp.web.Response(text=content, content_type='text/html')
     except FileNotFoundError:
@@ -80,7 +81,8 @@ async def static_handler(request):
     """Serve static files (CSS, JS, images)"""
     try:
         file_path = request.match_info['path']
-        full_path = f'../frontend/{file_path}'
+        # Use different paths based on environment
+        full_path = f'frontend/{file_path}' if os.path.exists('frontend') else f'../frontend/{file_path}'
         
         if not os.path.exists(full_path):
             return aiohttp.web.Response(text='File not found', status=404)
@@ -124,6 +126,8 @@ async def static_handler(request):
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
 # Add routes
+app.router.add_get('/health', health_check)
+app.router.add_get('/test', test_endpoint)
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
 

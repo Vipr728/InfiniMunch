@@ -1,4 +1,11 @@
-import google.generativeai as genai
+try:
+    import google.generativeai as genai  # type: ignore
+    GENAI_AVAILABLE = True
+except ImportError:
+    print("Warning: google-generativeai not installed. AI functionality will be disabled.")
+    GENAI_AVAILABLE = False
+    genai = None  # type: ignore
+
 import asyncio
 import os
 import json
@@ -11,12 +18,15 @@ class AICollisionResolver:
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the AI collision resolver with Gemini API"""
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
-        if not self.api_key:
+        if not GENAI_AVAILABLE:
+            print("Warning: google-generativeai not available. Using random fallback.")
+            self.model = None
+        elif not self.api_key:
             print("Warning: No Gemini API key found. Set GEMINI_API_KEY environment variable or pass api_key parameter.")
             self.model = None
         else:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            genai.configure(api_key=self.api_key)  # type: ignore
+            self.model = genai.GenerativeModel('gemini-1.5-flash')  # type: ignore
     
     async def determine_winner(self, player1_name: str, player2_name: str) -> Tuple[str, str]:
         """
@@ -69,7 +79,7 @@ class AICollisionResolver:
     
     def _call_gemini(self, prompt: str) -> str:
         """Synchronous wrapper for Gemini API call"""
-        response = self.model.generate_content(prompt)
+        response = self.model.generate_content(prompt)  # type: ignore
         return response.text
 
 # Global AI resolver instance
