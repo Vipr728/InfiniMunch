@@ -320,7 +320,7 @@ class AgarioGame {
             const canvasX = e.clientX - rect.left;
             const canvasY = e.clientY - rect.top;
 
-            // Calculate direction vector from fleet center (screen center) to mouse
+            // Calculate direction vector f/rom fleet center (screen center) to mouse
             const dx = canvasX - (this.baseViewWidth / 2);
             const dy = canvasY - (this.baseViewHeight / 2);
 
@@ -335,16 +335,51 @@ class AgarioGame {
     }
     
     connectToServer() {
-        this.socket = io('http://localhost:5000');
+        console.log('Attempting to connect to server...');
+        
+        // Determine server URL based on environment
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.protocol === 'file:';
+        
+        const serverUrl = isLocalhost ? 'http://localhost:5000' : 'https://infinimunch.onrender.com';
+        
+        console.log(`Connecting to server: ${serverUrl}`);
+        
+        this.socket = io(serverUrl, {
+            transports: ['polling'], // Use polling only for OnRender compatibility
+            timeout: 20000,
+            forceNew: true,
+            upgrade: false, // Disable WebSocket upgrade attempts
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
         
         this.socket.on('connect', () => {
-            console.log('Connected to server');
+            console.log('Connected to server successfully!');
             document.getElementById('connectionStatus').textContent = 'Connected!';
             document.getElementById('joinButton').disabled = false;
         });
         
-        this.socket.on('disconnect', () => {
-            console.log('Disconnected from server');
+        this.socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            let errorMessage = 'Connection failed: ' + error.message;
+            
+            // Provide more helpful error messages
+            if (error.message.includes('CORS')) {
+                errorMessage = 'CORS error: Server not configured properly for cross-origin requests';
+            } else if (error.message.includes('404')) {
+                errorMessage = 'Server not found: Check if the server is running and accessible';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Connection timeout: Server may be overloaded or unreachable';
+            }
+            
+            document.getElementById('connectionStatus').textContent = errorMessage;
+        });
+        
+        this.socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
             document.getElementById('connectionStatus').textContent = 'Disconnected from server';
             this.showMenu();
         });
