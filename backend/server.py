@@ -5,11 +5,56 @@ import asyncio
 import random
 import math
 import time
+import os
+from ai import ai_resolver
 
 # Create a Socket.IO server
-sio = socketio.AsyncServer(cors_allowed_origins="*")
+sio = socketio.AsyncServer(
+    cors_allowed_origins="*",
+    cors_credentials=False,
+    logger=True,
+    engineio_logger=True
+)
 app = aiohttp.web.Application()
 sio.attach(app)
+
+# Add static file serving
+async def index_handler(request):
+    """Serve the main HTML file"""
+    try:
+        with open('../frontend/index.html', 'r', encoding='utf-8') as f:
+            content = f.read()
+        return aiohttp.web.Response(text=content, content_type='text/html')
+    except FileNotFoundError:
+        return aiohttp.web.Response(text='Frontend not found', status=404)
+
+async def static_handler(request):
+    """Serve static files (CSS, JS)"""
+    try:
+        file_path = request.match_info['path']
+        full_path = f'../frontend/{file_path}'
+        
+        if not os.path.exists(full_path):
+            return aiohttp.web.Response(text='File not found', status=404)
+        
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Determine content type
+        if file_path.endswith('.css'):
+            content_type = 'text/css'
+        elif file_path.endswith('.js'):
+            content_type = 'application/javascript'
+        else:
+            content_type = 'text/plain'
+        
+        return aiohttp.web.Response(text=content, content_type=content_type)
+    except Exception as e:
+        return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
+
+# Add routes
+app.router.add_get('/', index_handler)
+app.router.add_get('/{path:.*}', static_handler)
 
 # Game state
 players = {}
@@ -32,6 +77,7 @@ PASTEL_COLORS = [
     "#e5d8bd",  # Light beige
     "#fddaec",  # Light magenta
 ]
+collision_cooldowns = {}  # Track collision cooldowns
 
 class Player:
     def __init__(self, player_id, name):
@@ -81,10 +127,16 @@ def check_collision(player1, player2):
     distance = math.sqrt(dx**2 + dy**2)
     return distance < (player1.size + player2.size) / 2
 
-def handle_collision(player1, player2):
-    """Handle collision between two players - random winner"""
-    winner = random.choice([player1, player2])
+async def handle_collision(player1, player2):
+    """Handle collision between two players - AI determines winner based on name power"""
+    # Use AI to determine winner based on name power
+    winner_name, loser_name = await ai_resolver.determine_winner(player1.name, player2.name)
+    
+    # Find the actual player objects
+    winner = player1 if winner_name == player1.name else player2
     loser = player2 if winner == player1 else player1
+    
+    print(f"AI determined '{winner.name}' wins over '{loser.name}' based on name power!")
     
     # Winner grows, loser shrinks or dies
     size_transfer = loser.size * 0.3
@@ -103,13 +155,18 @@ def handle_collision(player1, player2):
 @sio.event
 async def connect(sid, environ):
     print(f'Client {sid} connected')
+    print(f'Connection details: {environ.get("HTTP_USER_AGENT", "Unknown")}')
 
 @sio.event
 async def disconnect(sid):
     print(f'Client {sid} disconnected')
     if sid in players:
+        player_name = players[sid].name
         del players[sid]
         await sio.emit('player_left', {'player_id': sid})
+        print(f'Player {player_name} removed from game')
+    else:
+        print(f'Client {sid} disconnected without joining game')
 
 @sio.event
 async def join_game(sid, data):
@@ -137,6 +194,14 @@ async def move_player(sid, data):
     # Client now sends a direction vector {dx, dy}
     player.direction_dx = data.get('dx', 0)
     player.direction_dy = data.get('dy', 0)
+
+@sio.event
+async def connect_error(sid, data):
+    print(f'Connection error for {sid}: {data}')
+
+@sio.event
+async def error(sid, data):
+    print(f'Error for {sid}: {data}')
 
 async def game_loop():
     """Main game loop - now using a delta time model for frame-rate independence."""
@@ -172,15 +237,34 @@ async def game_loop():
             player_list = list(players.values())
             for i in range(len(player_list)):
                 for j in range(i + 1, len(player_list)):
-                    player1 = player_list[i]
-                    player2 = player_list[j]
-                    
-                    if check_collision(player1, player2):
-                        winner, loser = handle_collision(player1, player2)
-                        await sio.emit('collision', {
-                            'winner': winner.to_dict(),
-                            'loser': loser.to_dict(),
-                        })
+                    try:
+                        player1 = player_list[i]
+                        player2 = player_list[j]
+                        
+                        # Skip if either player no longer exists
+                        if player1.id not in players or player2.id not in players:
+                            continue
+                        
+                        # Check collision cooldown
+                        collision_key = f"{player1.id}-{player2.id}"
+                        current_time = time.time()
+                        
+                        if collision_key in collision_cooldowns:
+                            if current_time - collision_cooldowns[collision_key] < 2.0:  # 2 second cooldown
+                                continue
+                        
+                        if check_collision(player1, player2):
+                            # Set cooldown
+                            collision_cooldowns[collision_key] = current_time
+                            
+                            winner, loser = await handle_collision(player1, player2)
+                            await sio.emit('collision', {
+                                'winner': winner.to_dict(),
+                                'loser': loser.to_dict(),
+                            })
+                    except Exception as e:
+                        print(f"Error in collision detection: {e}")
+                        continue
             
             # Send updated game state to all clients
             await sio.emit('update_players', [p.to_dict() for p in players.values()])
@@ -188,7 +272,7 @@ async def game_loop():
         # Yield control to the event loop. The exact sleep duration is no longer critical for physics.
         await asyncio.sleep(1/60)
 
-# --- Aiohttp application setup for clean startup/shutdown ---
+# --- Aiohttp application setup for clean-up ---
 
 async def start_background_tasks(app):
     """Starts the game loop as a background task."""
@@ -206,4 +290,4 @@ app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    aiohttp.web.run_app(app, host='localhost', port=5000) 
+    aiohttp.web.run_app(app, host='localhost', port=5000)

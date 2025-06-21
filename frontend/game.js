@@ -157,7 +157,7 @@ class AgarioGame {
     }
     
     connectToServer() {
-        this.socket = io('http://localhost:5000');
+        this.socket = io('http://localhost:8080');
         // this.socket = io('https://qk5cj5-ip-167-220-57-55.tunnelmole.net');
         
         this.socket.on('connect', () => {
