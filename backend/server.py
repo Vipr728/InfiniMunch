@@ -9,7 +9,12 @@ import os
 from ai import ai_resolver
 
 # Create a Socket.IO server
-sio = socketio.AsyncServer(cors_allowed_origins="*")
+sio = socketio.AsyncServer(
+    cors_allowed_origins="*",
+    cors_credentials=False,
+    logger=True,
+    engineio_logger=True
+)
 app = aiohttp.web.Application()
 sio.attach(app)
 
@@ -57,6 +62,7 @@ WORLD_WIDTH = 800
 WORLD_HEIGHT = 600
 INITIAL_SIZE = 20
 MOVE_SPEED = 2
+collision_cooldowns = {}  # Track collision cooldowns
 
 class Player:
     def __init__(self, player_id, name):
@@ -89,9 +95,15 @@ class Player:
             self.x += (dx / distance) * MOVE_SPEED
             self.y += (dy / distance) * MOVE_SPEED
             
-            # Keep within bounds
+            # Keep within bounds - more aggressive boundary checking
             self.x = max(self.size, min(WORLD_WIDTH - self.size, self.x))
             self.y = max(self.size, min(WORLD_HEIGHT - self.size, self.y))
+            
+            # If we're still outside bounds, force reset to valid position
+            if self.x < self.size or self.x > WORLD_WIDTH - self.size:
+                self.x = max(self.size, min(WORLD_WIDTH - self.size, self.x))
+            if self.y < self.size or self.y > WORLD_HEIGHT - self.size:
+                self.y = max(self.size, min(WORLD_HEIGHT - self.size, self.y))
 
 def check_collision(player1, player2):
     """Check if two players are colliding"""
@@ -128,13 +140,18 @@ async def handle_collision(player1, player2):
 @sio.event
 async def connect(sid, environ):
     print(f'Client {sid} connected')
+    print(f'Connection details: {environ.get("HTTP_USER_AGENT", "Unknown")}')
 
 @sio.event
 async def disconnect(sid):
     print(f'Client {sid} disconnected')
     if sid in players:
+        player_name = players[sid].name
         del players[sid]
         await sio.emit('player_left', {'player_id': sid})
+        print(f'Player {player_name} removed from game')
+    else:
+        print(f'Client {sid} disconnected without joining game')
 
 @sio.event
 async def join_game(sid, data):
@@ -160,9 +177,30 @@ async def move_player(sid, data):
         return
         
     player = players[sid]
-    player.target_x = max(player.size, min(WORLD_WIDTH - player.size, data['x']))
-    player.target_y = max(player.size, min(WORLD_HEIGHT - player.size, data['y']))
-    print(f"Player {sid} moving to ({player.target_x}, {player.target_y})")
+    
+    # Get the target coordinates from the frontend
+    target_x = data.get('x', player.x)
+    target_y = data.get('y', player.y)
+    
+    # Ensure coordinates are within the world bounds
+    target_x = max(player.size, min(WORLD_WIDTH - player.size, target_x))
+    target_y = max(player.size, min(WORLD_HEIGHT - player.size, target_y))
+    
+    # Update player's target position
+    player.target_x = target_x
+    player.target_y = target_y
+    
+    # Debug logging (only for significant movements)
+    if abs(target_x - player.x) > 20 or abs(target_y - player.y) > 20:
+        print(f"Player {player.name} moving to ({target_x:.0f}, {target_y:.0f})")
+
+@sio.event
+async def connect_error(sid, data):
+    print(f'Connection error for {sid}: {data}')
+
+@sio.event
+async def error(sid, data):
+    print(f'Error for {sid}: {data}')
 
 async def game_loop():
     """Main game loop"""
@@ -176,15 +214,34 @@ async def game_loop():
             player_list = list(players.values())
             for i in range(len(player_list)):
                 for j in range(i + 1, len(player_list)):
-                    player1 = player_list[i]
-                    player2 = player_list[j]
-                    
-                    if check_collision(player1, player2):
-                        winner, loser = await handle_collision(player1, player2)
-                        await sio.emit('collision', {
-                            'winner': winner.to_dict(),
-                            'loser': loser.to_dict(),
-                        })
+                    try:
+                        player1 = player_list[i]
+                        player2 = player_list[j]
+                        
+                        # Skip if either player no longer exists
+                        if player1.id not in players or player2.id not in players:
+                            continue
+                        
+                        # Check collision cooldown
+                        collision_key = f"{player1.id}-{player2.id}"
+                        current_time = time.time()
+                        
+                        if collision_key in collision_cooldowns:
+                            if current_time - collision_cooldowns[collision_key] < 2.0:  # 2 second cooldown
+                                continue
+                        
+                        if check_collision(player1, player2):
+                            # Set cooldown
+                            collision_cooldowns[collision_key] = current_time
+                            
+                            winner, loser = await handle_collision(player1, player2)
+                            await sio.emit('collision', {
+                                'winner': winner.to_dict(),
+                                'loser': loser.to_dict(),
+                            })
+                    except Exception as e:
+                        print(f"Error in collision detection: {e}")
+                        continue
             
             # Send updated game state
             await sio.emit('update_players', [p.to_dict() for p in players.values()])
