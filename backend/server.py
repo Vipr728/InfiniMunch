@@ -6,19 +6,67 @@ import random
 import math
 import time
 import os
-from ai import determine_winner_with_cache
+
+# Try to import AI module, but don't fail if it's not available
+try:
+    from ai import determine_winner_with_cache
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI module not available: {e}")
+    AI_AVAILABLE = False
+    
+    # Fallback function
+    async def determine_winner_with_cache(player1_name, player2_name):
+        winner_name = random.choice([player1_name, player2_name])
+        loser_name = player2_name if winner_name == player1_name else player1_name
+        return winner_name, loser_name
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
+    cors_allowed_origins=["*"],
     cors_credentials=False,
-    logger=False,
-    engineio_logger=False
+    logger=True,
+    engineio_logger=True,
+    async_mode='aiohttp',
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=1e6
 )
 app = aiohttp.web.Application()
 sio.attach(app)
 
+# Add CORS middleware
+async def cors_middleware(app, handler):
+    async def middleware(request):
+        if request.method == 'OPTIONS':
+            response = aiohttp.web.Response()
+        else:
+            response = await handler(request)
+        
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
+    return middleware
+
+app.middlewares.append(cors_middleware)
+
 # Add static file serving
+async def health_check(request):
+    """Health check endpoint for OnRender"""
+    return aiohttp.web.Response(text='OK', content_type='text/plain')
+
+async def test_endpoint(request):
+    """Test endpoint to verify server is working"""
+    status = {
+        'status': 'running',
+        'ai_available': AI_AVAILABLE,
+        'players_count': len(players),
+        'minions_count': len(minions),
+        'timestamp': time.time()
+    }
+    return aiohttp.web.json_response(status)
+
 async def index_handler(request):
     """Serve the main HTML file"""
     try:
@@ -53,6 +101,9 @@ async def static_handler(request):
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
 # Add routes
+app.router.add_get('/health', health_check)
+app.router.add_get('/test', test_endpoint)
+app.router.add_get('/test.html', lambda r: aiohttp.web.FileResponse('test.html'))
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
 
@@ -63,6 +114,7 @@ WORLD_WIDTH = 2000
 WORLD_HEIGHT = 1500
 MINION_SIZE = 45
 FLEET_SIZE = 5
+INITIAL_SIZE = 50  # Initial size for respawned players
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
 BASE_MAX_SPEED = 500.0    # Base speed for minions (increased from 200.0 for much faster gameplay)
@@ -93,6 +145,11 @@ class Minion:
         self.direction_dx = 0
         self.direction_dy = 0
         self.last_infection_time = 0  # Timestamp of last infection for invulnerability
+        
+        # Respawn and invulnerability state
+        self.is_dead = False
+        self.invulnerable_until = 0
+        self.respawn_time = 0
         
     def to_dict(self):
         current_time = time.time()
@@ -216,6 +273,8 @@ async def handle_minion_collision(minion1, minion2):
 async def connect(sid, environ):
     print(f'Client {sid} connected')
     print(f'Connection details: {environ.get("HTTP_USER_AGENT", "Unknown")}')
+    print(f'Remote address: {environ.get("REMOTE_ADDR", "Unknown")}')
+    print(f'HTTP headers: {dict(environ)}')
 
 @sio.event
 async def disconnect(sid):
@@ -340,6 +399,60 @@ async def change_name(sid, data):
         })
         
         print(f'Player {old_name} changed name to {new_name}')
+
+def is_within_rounded_bounds(x, y, size):
+    """Check if a position is within the rounded world bounds"""
+    # For now, just check rectangular bounds since we don't have rounded corners implemented
+    return size/2 <= x <= WORLD_WIDTH - size/2 and size/2 <= y <= WORLD_HEIGHT - size/2
+
+def clamp_to_rounded_bounds(x, y, size):
+    """Clamp a position to be within the rounded world bounds"""
+    # For now, just clamp to rectangular bounds
+    clamped_x = max(size/2, min(WORLD_WIDTH - size/2, x))
+    clamped_y = max(size/2, min(WORLD_HEIGHT - size/2, y))
+    return clamped_x, clamped_y
+
+@sio.event
+async def respawn_player(sid, data):
+    """Handle player respawn request"""
+    if sid not in players:
+        return
+        
+    player = players[sid]
+    current_time = time.time()
+    
+    # Respawn the player
+    player.is_dead = False
+    
+    # Spawn within rounded bounds
+    max_attempts = 50
+    for attempt in range(max_attempts):
+        # Generate position within the main rectangular area
+        spawn_x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
+        spawn_y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
+        
+        # Check if it's within rounded bounds
+        if is_within_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE):
+            player.x = spawn_x
+            player.y = spawn_y
+            break
+    else:
+        # If we can't find a good position, use the clamp function
+        player.x, player.y = clamp_to_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE)
+    
+    player.size = INITIAL_SIZE
+    player.color = random.choice(PASTEL_COLORS)
+    
+    # Give 3 seconds of invulnerability
+    player.invulnerable_until = current_time + 3.0
+    
+    # Notify all clients about the respawn
+    await sio.emit('player_respawned', {
+        'player_id': sid,
+        'player': player.to_dict()
+    })
+    
+    print(f'Player {player.name} respawned')
 
 @sio.event
 async def connect_error(sid, data):
@@ -529,4 +642,9 @@ app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    aiohttp.web.run_app(app, host='localhost', port=5000)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    print(f"Starting InfiniMunch server on port {port}")
+    print(f"AI module available: {AI_AVAILABLE}")
+    print(f"Server will be accessible at: http://0.0.0.0:{port}")
+    aiohttp.web.run_app(app, host='0.0.0.0', port=port)

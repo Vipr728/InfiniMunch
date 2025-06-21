@@ -441,4 +441,78 @@ body::before {
     color: #64b5f6;
     min-width: 35px;
     text-align: right;
+}
+
+#chatLog {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 100;
+    pointer-events: none; /* Make it transparent to mouse events */
+}
+
+#chatLog h3 {
+    font-size: 14px;
+    color: #64b5f6;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px rgba(100, 181, 246, 0.5);
+    text-align: center;
+}
+
+#chatMessages {
+    max-height: 200px;
+    max-width: 300px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    backdrop-filter: blur(2px);
+    
+    /* Hide scrollbar */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+#chatMessages::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+.chat-message {
+    font-size: 14px; /* Increased from 12px (20% larger) */
+    color: rgba(200, 200, 200, 0.8);
+    margin-bottom: 3px;
+    line-height: 1.2;
+    word-wrap: break-word;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.chat-message .winner {
+    color: rgba(76, 175, 80, 0.9);
+    font-weight: bold;
+}
+
+.chat-message .loser {
+    color: rgba(244, 67, 54, 0.9);
+    font-weight: bold;
+}
+
+.chat-message .infection {
+    color: rgba(255, 152, 0, 0.9);
+    font-style: italic;
+}
+
+.chat-message .elimination {
+    color: rgba(233, 30, 99, 0.9);
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(233, 30, 99, 0.3);
+}
+
+.chat-message .join {
+    color: rgba(33, 150, 243, 0.9);
+    font-style: italic;
+}
+
+.chat-message .leave {
+    color: rgba(158, 158, 158, 0.8);
+    font-style: italic;
 } 
