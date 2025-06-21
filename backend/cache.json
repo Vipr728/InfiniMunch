@@ -27,32 +27,8 @@
         "abhi (1)",
         "abhi"
     ],
-    "('Bob', 'Joseph')": [
-        "Bob",
-        "Joseph"
-    ],
-    "('Joseph', 'Joseph')": [
-        "Joseph",
-        "Joseph"
-    ],
-    "('Bob', 'Bob Ross')": [
-        "Bob Ross",
-        "Bob"
-    ],
-    "('Bob Ross', 'Joseph')": [
-        "Bob Ross",
-        "Joseph"
-    ],
-    "('Bob', 'Bob')": [
-        "Bob",
-        "Bob"
-    ],
-    "('God Eater', 'God eater eater')": [
-        "God eater eater",
-        "God Eater"
-    ],
-    "('God Eater', 'God Eater')": [
-        "God Eater",
-        "God Eater"
+    "('abhi', 'lion')": [
+        "lion",
+        "abhi"
     ]
 }

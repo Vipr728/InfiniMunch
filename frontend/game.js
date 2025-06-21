@@ -24,10 +24,13 @@ class AgarioGame {
         this.targetCameraY = 0;
         this.zoom = 1;
         
+        // Ad system
+        this.adImages = [];
+        
         this.init();
     }
     
-    init() {
+    async init() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -37,11 +40,136 @@ class AgarioGame {
         // Create minimap
         this.createMinimap();
         
+        // Load ad images
+        await this.loadAdImages();
+        
         this.setupEventListeners();
         this.connectToServer();
         
         // Start render loop
         this.startRenderLoop();
+    }
+    
+    async loadAdImages() {
+        const adFiles = ['image.png', 'Arize.png', 'Oracle.png', 'AWS.png', 'banyan.png'];
+        const adPromises = adFiles.map(filename => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error(`Failed to load ad: ${filename}`));
+                img.src = `ads/${filename}`;
+            });
+        });
+        
+        try {
+            this.adImages = await Promise.all(adPromises);
+            console.log(`Loaded ${this.adImages.length} ad images`);
+        } catch (error) {
+            console.error('Error loading ad images:', error);
+            this.adImages = []; // Fallback to no ads
+        }
+    }
+    
+    shouldShowAds() {
+        // Show ads when camera is near world boundaries
+        const margin = 200; // Distance from edge to start showing ads
+        return this.cameraX < margin || 
+               this.cameraX + this.viewWidth > this.worldWidth - margin ||
+               this.cameraY < margin || 
+               this.cameraY + this.viewHeight > this.worldHeight - margin;
+    }
+    
+    getAdPositions() {
+        const adSize = 120; // Size of ad images
+        const positions = [];
+        
+        // Fixed ad positions around the world boundaries (like soccer field ads)
+        const adSpacing = adSize + 40; // Space between ads
+        
+        // Left edge ads (fixed positions)
+        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+            positions.push({
+                x: -adSize - 20, // Just outside the left boundary
+                y: y,
+                width: adSize,
+                height: adSize,
+                edge: 'left',
+                adIndex: Math.floor(y / adSpacing) % this.adImages.length
+            });
+        }
+        
+        // Right edge ads (fixed positions)
+        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+            positions.push({
+                x: this.worldWidth + 20, // Just outside the right boundary
+                y: y,
+                width: adSize,
+                height: adSize,
+                edge: 'right',
+                adIndex: (Math.floor(y / adSpacing) + 2) % this.adImages.length
+            });
+        }
+        
+        // Top edge ads (fixed positions)
+        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+            positions.push({
+                x: x,
+                y: -adSize - 20, // Just outside the top boundary
+                width: adSize,
+                height: adSize,
+                edge: 'top',
+                adIndex: (Math.floor(x / adSpacing) + 4) % this.adImages.length
+            });
+        }
+        
+        // Bottom edge ads (fixed positions)
+        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+            positions.push({
+                x: x,
+                y: this.worldHeight + 20, // Just outside the bottom boundary
+                width: adSize,
+                height: adSize,
+                edge: 'bottom',
+                adIndex: (Math.floor(x / adSpacing) + 6) % this.adImages.length
+            });
+        }
+        
+        return positions;
+    }
+    
+    drawAds() {
+        if (!this.shouldShowAds() || this.adImages.length === 0) {
+            return;
+        }
+        
+        const positions = this.getAdPositions();
+        
+        positions.forEach(pos => {
+            // Only draw ads that are visible on screen
+            const screenX = (pos.x - this.cameraX) * (this.baseViewWidth / this.viewWidth);
+            const screenY = (pos.y - this.cameraY) * (this.baseViewWidth / this.viewWidth);
+            const screenWidth = pos.width * (this.baseViewWidth / this.viewWidth);
+            const screenHeight = pos.height * (this.baseViewWidth / this.viewWidth);
+            
+            // Check if ad is visible on screen
+            if (screenX + screenWidth > 0 && screenX < this.baseViewWidth &&
+                screenY + screenHeight > 0 && screenY < this.baseViewHeight) {
+                
+                const adImage = this.adImages[pos.adIndex];
+                
+                // Draw ad background (soccer field style)
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+                
+                // Draw ad image
+                this.ctx.drawImage(adImage, screenX, screenY, screenWidth, screenHeight);
+                
+                // Draw border (soccer field style)
+                this.ctx.strokeStyle = '#000000';
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+            }
+        });
     }
     
     createMinimap() {
@@ -354,6 +482,9 @@ class AgarioGame {
         
         // Add random stars
         this.drawStars();
+        
+        // Draw ads in screen coordinates (before camera transformations)
+        this.drawAds();
         
         // Apply the camera zoom
         const zoomScale = this.baseViewWidth / this.viewWidth;
