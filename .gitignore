@@ -1,3 +1,4 @@
 .env
 /backend/__pycache__
 backend/cache.json
+cache.json
