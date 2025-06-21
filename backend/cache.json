@@ -22,5 +22,9 @@
     "('abhi (indian)', 'go')": [
         "abhi (indian)",
         "go"
+    ],
+    "('abhi', 'abhi (1)')": [
+        "abhi (1)",
+        "abhi"
     ]
 }

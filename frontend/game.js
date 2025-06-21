@@ -190,19 +190,31 @@ class AgarioGame {
             this.showMenu();
         });
         
+        this.socket.on('join_failed', (data) => {
+            alert(data.message);
+            // Re-enable the join button and input so the user can try again
+            document.getElementById('joinButton').disabled = false;
+            document.getElementById('playerName').disabled = false;
+        });
+        
         this.socket.on('game_state', (data) => {
-            console.log('Received game state:', data);
+            console.log('Received game state (join successful):', data);
             this.worldWidth = data.world.width;
             this.worldHeight = data.world.height;
             
             this.players.clear();
-            // No more interpolation, just use server data directly
             data.players.forEach(player => {
                 this.players.set(player.id, player);
-                if (player.id === this.myPlayerId) {
-                    console.log('Found my player:', player);
-                }
             });
+            
+            // Ensure our player's name display is updated with the final name from the server
+            const myPlayer = this.players.get(this.myPlayerId);
+            if (myPlayer) {
+                document.getElementById('playerName2').textContent = myPlayer.name;
+            }
+            
+            // Move to the game screen only on successful join
+            this.showGame();
         });
         
         this.socket.on('player_joined', (player) => {
@@ -255,6 +267,10 @@ class AgarioGame {
             }
         });
         
+        this.socket.on('name_change_failed', (data) => {
+            alert(data.message);
+        });
+        
         this.socket.on('connect_error', () => {
             document.getElementById('connectionStatus').textContent = 'Failed to connect to server';
         });
@@ -276,10 +292,12 @@ class AgarioGame {
         
         console.log('Socket ID:', this.socket.id);
         this.myPlayerId = this.socket.id;
-        document.getElementById('playerName2').textContent = name;
+        
+        // Disable button to prevent spam while waiting for server response
+        document.getElementById('joinButton').disabled = true;
+        document.getElementById('playerName').disabled = true;
         
         this.socket.emit('join_game', { name });
-        this.showGame();
     }
     
     showMenu() {

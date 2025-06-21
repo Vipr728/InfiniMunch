@@ -81,6 +81,19 @@ PASTEL_COLORS = [
 ]
 collision_cooldowns = {}  # Track collision cooldowns
 
+def get_unique_name(name: str, players: dict) -> str:
+    """Generates a unique name by appending a number if the name already exists."""
+    existing_names = {p.name for p in players.values()}
+    if name not in existing_names:
+        return name
+    
+    counter = 1
+    new_name = f"{name} ({counter})"
+    while new_name in existing_names:
+        counter += 1
+        new_name = f"{name} ({counter})"
+    return new_name
+
 class Player:
     def __init__(self, player_id, name):
         self.id = player_id
@@ -178,11 +191,22 @@ async def disconnect(sid):
 
 @sio.event
 async def join_game(sid, data):
-    player_name = data.get('name', f'Player{len(players) + 1}')
+    player_name = data.get('name', '').strip()
+    
+    if not player_name:
+        await sio.emit('join_failed', {'message': 'Please enter a name.'}, room=sid)
+        return
+
+    # Check if name is already in use
+    existing_names = {p.name for p in players.values()}
+    if player_name in existing_names:
+        await sio.emit('join_failed', {'message': f'The name "{player_name}" is already taken.'}, room=sid)
+        return
+    
     player = Player(sid, player_name)
     players[sid] = player
     
-    # Send current game state to new player
+    # Send current game state to new player, confirming a successful join
     await sio.emit('game_state', {
         'players': [p.to_dict() for p in players.values()],
         'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
@@ -205,14 +229,20 @@ async def move_player(sid, data):
 
 @sio.event
 async def change_name(sid, data):
-    """Handle player name change request"""
+    """Handle player name change request, ensuring uniqueness."""
     if sid not in players:
         return
         
     player = players[sid]
     new_name = data.get('name', '').strip()
     
-    if not new_name:
+    if not new_name or new_name == player.name:
+        return
+
+    # Check if the name is already taken by another player
+    existing_names = {p.name for p in players.values() if p.id != sid}
+    if new_name in existing_names:
+        await sio.emit('name_change_failed', {'message': f'The name "{new_name}" is already taken.'}, room=sid)
         return
     
     old_name = player.name
