@@ -308,11 +308,16 @@ class AgarioGame {
     
     connectToServer() {
         console.log('Attempting to connect to server...');
-        this.socket = io('https://infinimunch.onrender.com', {
-            transports: ['polling'], // Use polling only for OnRender compatibility
+        // Detect if we're running locally or on a deployed server
+        const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        const serverUrl = isLocal ? 'http://localhost:5000' : '/';
+        
+        console.log(`Connecting to: ${serverUrl}`);
+        this.socket = io(serverUrl, {
+            transports: ['polling', 'websocket'], // Allow both for local development
             timeout: 20000,
             forceNew: true,
-            upgrade: false // Disable WebSocket upgrade attempts
+            upgrade: true // Enable WebSocket upgrade for better performance
         });
         
         this.socket.on('connect', () => {
@@ -439,8 +444,8 @@ class AgarioGame {
             this.showInfectionEffect(data.loser.x, data.loser.y);
         });
         
-        this.socket.on('player_died', (data) => {
-            console.log('Player died:', data);
+        this.socket.on('player_eliminated', (data) => {
+            console.log('Player eliminated:', data);
             const player = this.players.get(data.player_id);
             if (player) {
                 // Immediately mark the player as dead so they disappear
@@ -980,7 +985,6 @@ class AgarioGame {
         if (this.socket && this.socket.connected) {
             console.log('Requesting respawn with name:', newName);
             this.socket.emit('change_name', { name: newName });
-            }
             
             // Then respawn
             this.socket.emit('respawn_player', {});

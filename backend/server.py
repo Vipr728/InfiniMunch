@@ -23,10 +23,10 @@ except ImportError as e:
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
-    cors_allowed_origins=["*"],
+    cors_allowed_origins="*",  # Changed from ["*"] to "*" - string format works better
     cors_credentials=False,
-    logger=True,
-    engineio_logger=True,
+    logger=False,  # Disable logging to reduce CORS error spam
+    engineio_logger=False,
     async_mode='aiohttp',
     ping_timeout=60,
     ping_interval=25,
@@ -239,17 +239,21 @@ async def handle_minion_collision(minion1, minion2):
     """Handle collision between two minions - winner infects loser"""
     # Don't handle collision if minions have same owner
     if minion1.owner_id == minion2.owner_id:
-        return None, None
-    
+        return
+
     # Use AI to determine winner based on original names
-    winner_name, loser_name = await determine_winner_with_cache(minion1.original_name, minion2.original_name)
+    winner_name, original_loser_name = await determine_winner_with_cache(minion1.original_name, minion2.original_name)
     
     # Find the actual minion objects
     winner = minion1 if winner_name == minion1.original_name else minion2
     loser = minion2 if winner == minion1 else minion1
+
+    print(f"AI determined '{winner.original_name}' wins over '{original_loser_name}' - infecting!")
     
-    print(f"AI determined '{winner.original_name}' wins over '{loser.original_name}' - infecting!")
-    
+    # Preserve the loser's data before it's changed
+    loser_dict = loser.to_dict()
+    loser_dict['original_name'] = original_loser_name
+
     # Winner infects loser - loser changes owner, color, and takes on winner's name
     old_owner_id = loser.owner_id
     loser.owner_id = winner.owner_id
@@ -257,6 +261,12 @@ async def handle_minion_collision(minion1, minion2):
     loser.original_name = winner.original_name  # Infected minion takes on winner's name
     loser.last_infection_time = time.time()  # Set invulnerability period
     
+    # Emit infection event with correct original names
+    await sio.emit('infection_happened', {
+        'winner': winner.to_dict(),
+        'loser': loser_dict
+    })
+
     # Check if any player has lost all their minions
     old_owner = players.get(old_owner_id)
     if old_owner and len(old_owner.get_owned_minions()) == 0:
@@ -266,8 +276,6 @@ async def handle_minion_collision(minion1, minion2):
             'player_name': old_owner.name
         })
         print(f'Player {old_owner.name} has been eliminated!')
-    
-    return winner, loser
 
 @sio.event
 async def connect(sid, environ):
@@ -421,38 +429,38 @@ async def respawn_player(sid, data):
     player = players[sid]
     current_time = time.time()
     
+    # Remove any existing minions for this player
+    minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
+    for m_id in minions_to_remove:
+        del minions[m_id]
+    
     # Respawn the player
     player.is_dead = False
-    
-    # Spawn within rounded bounds
-    max_attempts = 50
-    for attempt in range(max_attempts):
-        # Generate position within the main rectangular area
-        spawn_x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        spawn_y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
-        
-        # Check if it's within rounded bounds
-        if is_within_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE):
-            player.x = spawn_x
-            player.y = spawn_y
-            break
-    else:
-        # If we can't find a good position, use the clamp function
-        player.x, player.y = clamp_to_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE)
-    
-    player.size = INITIAL_SIZE
     player.color = random.choice(PASTEL_COLORS)
+    
+    # Create new fleet for respawned player - this is the crucial missing part!
+    player.create_fleet()
     
     # Give 3 seconds of invulnerability
     player.invulnerable_until = current_time + 3.0
     
-    # Notify all clients about the respawn
-    await sio.emit('player_respawned', {
-        'player_id': sid,
-        'player': player.to_dict()
-    })
+    # Send updated game state to ALL players to ensure synchronization
+    game_state_data = {
+        'players': [p.to_dict() for p in players.values()],
+        'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+        'all_minions': [m.to_dict() for m in minions.values()],
+    }
     
-    print(f'Player {player.name} respawned')
+    # Send to the respawned player first
+    await sio.emit('game_state', game_state_data, room=sid)
+    
+    # Send to all other players as well to keep everyone in sync
+    await sio.emit('update_game_state', {
+        'players': game_state_data['players'],
+        'all_minions': game_state_data['all_minions']
+    }, skip_sid=sid)
+    
+    print(f'Player {player.name} respawned with {FLEET_SIZE} new minions')
 
 @sio.event
 async def connect_error(sid, data):
@@ -605,12 +613,7 @@ async def game_loop():
                                 # Set cooldown
                                 collision_cooldowns[collision_key] = current_time
                                 
-                                winner, loser = await handle_minion_collision(minion1, minion2)
-                                if winner and loser:
-                                    await sio.emit('minion_infection', {
-                                        'winner': winner.to_dict(),
-                                        'loser': loser.to_dict(),
-                                    })
+                                await handle_minion_collision(minion1, minion2)
                     except Exception as e:
                         print(f"Error in minion collision detection: {e}")
                         continue

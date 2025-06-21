@@ -20,7 +20,7 @@
 
         log('Starting connection test...');
         
-        const socket = io('https://infinimunch.onrender.com', {
+        const socket = io('/', {
             transports: ['polling'],
             timeout: 20000,
             forceNew: true,

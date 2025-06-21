@@ -226,5 +226,69 @@
     "('abhi', 'abhi')": [
         "abhi",
         "abhi"
+    ],
+    "('Test', 'Tester')": [
+        "Tester",
+        "Test"
+    ],
+    "('Chat', 'Tester')": [
+        "Tester",
+        "Chat"
+    ],
+    "('Dog', 'Dog eater')": [
+        "Dog eater",
+        "Dog"
+    ],
+    "('Cookie monster', 'Dog eater')": [
+        "Dog eater",
+        "Cookie monster"
+    ],
+    "('Dog eater', 'ninja')": [
+        "ninja",
+        "Dog eater"
+    ],
+    "('cat', 'ninja')": [
+        "ninja",
+        "cat"
+    ],
+    "('Dog eater', 'cat')": [
+        "Dog eater",
+        "cat"
+    ],
+    "('Dog eater', 'chat')": [
+        "Dog eater",
+        "chat"
+    ],
+    "('Cat', 'Dog')": [
+        "Cat",
+        "Dog"
+    ],
+    "('Cat', 'Kibbles')": [
+        "Cat",
+        "Kibbles"
+    ],
+    "('Kibbles', 'not cat')": [
+        "Kibbles",
+        "not cat"
+    ],
+    "('Kibbles', 'meow')": [
+        "Kibbles",
+        "meow"
+    ],
+    "('Chat', 'streamer')": [
+        "Chat",
+        "streamer"
+    ],
+    "('Bob', 'Chat')": [
+        "Bob",
+        "Chat"
+    ],
+    "('Bob', 'Meow')": [
+        "Meow",
+        "Bob"
+    ],
+    "('Meow', 'vortex')": [
+        "Meow",
+        "vortex"
     ]
 }
