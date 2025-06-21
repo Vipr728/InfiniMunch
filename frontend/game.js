@@ -307,16 +307,26 @@ class AgarioGame {
     }
     
     connectToServer() {
-        this.socket = io('https://infinimunch.onrender.com');
+        console.log('Attempting to connect to server...');
+        this.socket = io('https://infinimunch.onrender.com', {
+            transports: ['websocket', 'polling'],
+            timeout: 20000,
+            forceNew: true
+        });
         
         this.socket.on('connect', () => {
-            console.log('Connected to server');
+            console.log('Connected to server successfully!');
             document.getElementById('connectionStatus').textContent = 'Connected!';
             document.getElementById('joinButton').disabled = false;
         });
         
-        this.socket.on('disconnect', () => {
-            console.log('Disconnected from server');
+        this.socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            document.getElementById('connectionStatus').textContent = 'Connection failed: ' + error.message;
+        });
+        
+        this.socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
             document.getElementById('connectionStatus').textContent = 'Disconnected from server';
             this.showMenu();
         });

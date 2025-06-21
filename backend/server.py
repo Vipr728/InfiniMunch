@@ -6,19 +6,48 @@ import random
 import math
 import time
 import os
-from ai import determine_winner_with_cache
+
+# Try to import AI module, but don't fail if it's not available
+try:
+    from ai import determine_winner_with_cache
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI module not available: {e}")
+    AI_AVAILABLE = False
+    
+    # Fallback function
+    async def determine_winner_with_cache(player1_name, player2_name):
+        winner_name = random.choice([player1_name, player2_name])
+        loser_name = player2_name if winner_name == player1_name else player1_name
+        return winner_name, loser_name
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
+    cors_allowed_origins=["*"],
     cors_credentials=False,
-    logger=False,
-    engineio_logger=False
+    logger=True,
+    engineio_logger=True,
+    async_mode='aiohttp'
 )
 app = aiohttp.web.Application()
 sio.attach(app)
 
 # Add static file serving
+async def health_check(request):
+    """Health check endpoint for OnRender"""
+    return aiohttp.web.Response(text='OK', content_type='text/plain')
+
+async def test_endpoint(request):
+    """Test endpoint to verify server is working"""
+    status = {
+        'status': 'running',
+        'ai_available': AI_AVAILABLE,
+        'players_count': len(players),
+        'minions_count': len(minions),
+        'timestamp': time.time()
+    }
+    return aiohttp.web.json_response(status)
+
 async def index_handler(request):
     """Serve the main HTML file"""
     try:
@@ -53,6 +82,8 @@ async def static_handler(request):
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
 # Add routes
+app.router.add_get('/health', health_check)
+app.router.add_get('/test', test_endpoint)
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
 
@@ -221,6 +252,8 @@ async def handle_minion_collision(minion1, minion2):
 async def connect(sid, environ):
     print(f'Client {sid} connected')
     print(f'Connection details: {environ.get("HTTP_USER_AGENT", "Unknown")}')
+    print(f'Remote address: {environ.get("REMOTE_ADDR", "Unknown")}')
+    print(f'HTTP headers: {dict(environ)}')
 
 @sio.event
 async def disconnect(sid):
@@ -563,4 +596,7 @@ app.on_cleanup.append(cleanup_background_tasks)
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
+    print(f"Starting InfiniMunch server on port {port}")
+    print(f"AI module available: {AI_AVAILABLE}")
+    print(f"Server will be accessible at: http://0.0.0.0:{port}")
     aiohttp.web.run_app(app, host='0.0.0.0', port=port)
