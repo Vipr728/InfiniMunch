@@ -54,5 +54,81 @@
     "('God Eater', 'God Eater')": [
         "God Eater",
         "God Eater"
+    ],
+    "('abhinav(indian)', 'cologn')": [
+        "cologn",
+        "abhinav(indian)"
+    ],
+    "('abhinav(indian)', 'abhinav(indian)')": [
+        "abhinav(indian)",
+        "abhinav(indian)"
+    ],
+    "('abhinav', 'cologn')": [
+        "abhinav",
+        "cologn"
+    ],
+    "('cologn', 'cologn')": [
+        "cologn",
+        "cologn"
+    ],
+    "('abhinav', 'abhinav(indian)')": [
+        "abhinav",
+        "abhinav(indian)"
+    ],
+    "('god', 'goddd')": [
+        "goddd",
+        "god"
+    ],
+    "('god', 'god')": [
+        "god",
+        "god"
+    ],
+    "('dg', 'god')": [
+        "dg",
+        "god"
+    ],
+    "('chat', 'twitch')": [
+        "chat",
+        "twitch"
+    ],
+    "('twitch', 'twitch')": [
+        "twitch",
+        "twitch"
+    ],
+    "('chat', 'top')": [
+        "top",
+        "chat"
+    ],
+    "('top', 'twitch')": [
+        "top",
+        "twitch"
+    ],
+    "('chat', 'chat')": [
+        "chat",
+        "chat"
+    ],
+    "('abhinav', 'top')": [
+        "abhinav",
+        "top"
+    ],
+    "('top', 'top')": [
+        "top",
+        "top"
+    ],
+    "('loser', 'winner')": [
+        "winner",
+        "loser"
+    ],
+    "('loser', 'loser')": [
+        "loser",
+        "loser"
+    ],
+    "('loser', 'respawn')": [
+        "respawn",
+        "loser"
+    ],
+    "('respawn', 'winner')": [
+        "respawn",
+        "winner"
     ]
 }

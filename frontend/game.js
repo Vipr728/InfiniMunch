@@ -24,6 +24,9 @@ class AgarioGame {
         this.targetCameraY = 0;
         this.zoom = 1;
         
+        // Chat message tracking for duplicates
+        this.recentMessages = new Map(); // message -> { count: number, timestamp: number, element: HTMLElement }
+        
         this.init();
     }
     
@@ -214,33 +217,53 @@ class AgarioGame {
         this.socket.on('player_joined', (player) => {
             console.log('Player joined:', player);
             this.players.set(player.id, player);
+            this.addChatMessage(`${player.name} joined the battle!`, 'join');
             this.updateUI();
         });
         
         this.socket.on('player_left', (data) => {
-            console.log('Player left:', data);
-            this.players.delete(data.player_id);
-            
-            // Remove minions owned by this player
-            for (let [minionId, minion] of this.minions) {
-                if (minion.owner_id === data.player_id) {
-                    this.minions.delete(minionId);
-                }
+            const player = this.players.get(data.player_id);
+            if (player) {
+                console.log(`${player.name} left the game`);
+                this.addChatMessage(`${player.name} left the battle.`, 'leave');
+                this.players.delete(data.player_id);
             }
-            
+        });
+        
+        this.socket.on('update_players', (playersData) => {
+            playersData.forEach(playerData => {
+                const p = this.players.get(playerData.id);
+                if (p) {
+                    // Update server data directly. No more render properties.
+                    p.x = playerData.x;
+                    p.y = playerData.y;
+                    p.size = playerData.size;
+                    p.color = playerData.color; // Ensure color updates on respawn
+                    p.is_dead = playerData.is_dead; // Update death state
+                    p.invulnerable_until = playerData.invulnerable_until; // Update invulnerability
+                    p.minion_count = playerData.minion_count;
+                    p.fleet_center_x = playerData.fleet_center_x;
+                    p.fleet_center_y = playerData.fleet_center_y;
+                }
+            });
             this.updateUI();
         });
         
         this.socket.on('update_game_state', (data) => {
-            // Update all players
-            data.players.forEach(player => {
-                this.players.set(player.id, player);
+            // Update players
+            data.players.forEach(playerData => {
+                const p = this.players.get(playerData.id);
+                if (p) {
+                    Object.assign(p, playerData);
+                }
             });
             
-            // Update all minions
-            this.minions.clear();
-            data.all_minions.forEach(minion => {
-                this.minions.set(minion.id, minion);
+            // Update minions
+            data.all_minions.forEach(minionData => {
+                const m = this.minions.get(minionData.id);
+                if (m) {
+                    Object.assign(m, minionData);
+                }
             });
             
             this.updateUI();
@@ -252,15 +275,25 @@ class AgarioGame {
             this.minions.set(data.winner.id, data.winner);
             this.minions.set(data.loser.id, data.loser);
             
+            // Add chat message for the battle result
+            const winnerName = data.winner.original_name;
+            const loserName = data.loser.original_name;
+            this.addChatMessage(`${winnerName} defeated ${loserName}!`, 'infection');
+            
             // Show infection effect
             this.showInfectionEffect(data.loser.x, data.loser.y);
         });
         
-        this.socket.on('player_eliminated', (data) => {
-            console.log('Player eliminated:', data);
+        this.socket.on('player_died', (data) => {
+            console.log('Player died:', data);
+            const player = this.players.get(data.player_id);
+            if (player) {
+                // Immediately mark the player as dead so they disappear
+                player.is_dead = true;
+                this.addChatMessage(`${player.name} was eliminated!`, 'elimination');
+            }
             if (data.player_id === this.myPlayerId) {
-                // Current player was eliminated
-                this.showNameChangeModal(this.players.get(this.myPlayerId)?.name || '');
+                this.showNameChangeModal(data.current_name);
             }
         });
         
@@ -269,6 +302,7 @@ class AgarioGame {
             const player = this.players.get(data.player_id);
             if (player) {
                 player.name = data.new_name;
+                this.addChatMessage(`${data.old_name} renamed to ${data.new_name}`, 'normal');
                 this.updateUI();
             }
         });
@@ -562,10 +596,11 @@ class AgarioGame {
     updateLeaderboard() {
         const leaderboardList = document.getElementById('leaderboardList');
         
-        // Convert players Map to array and sort by minion count (descending)
+        // Convert players Map to array, filter out dead players, and sort by minion count (descending)
         const sortedPlayers = Array.from(this.players.values())
+            .filter(player => !player.is_dead) // Exclude dead players from leaderboard
             .sort((a, b) => b.minion_count - a.minion_count)
-            .slice(0, 10);
+            .slice(0, 10); // Show top 10 players
         
         // Clear current leaderboard
         leaderboardList.innerHTML = '';
@@ -656,6 +691,65 @@ class AgarioGame {
         }
         
         this.hideNameChangeModal();
+    }
+    
+    addChatMessage(message, type = 'normal') {
+        const chatMessages = document.getElementById('chatMessages');
+        const currentTime = Date.now();
+        const fiveSecondsAgo = currentTime - 5000; // 5 seconds in milliseconds
+        
+        // Clean up old messages from tracking
+        for (const [msg, data] of this.recentMessages.entries()) {
+            if (data.timestamp < fiveSecondsAgo) {
+                this.recentMessages.delete(msg);
+            }
+        }
+        
+        // Check if we have this message in the recent window
+        if (this.recentMessages.has(message)) {
+            const messageData = this.recentMessages.get(message);
+            
+            // Update the count and timestamp
+            messageData.count++;
+            messageData.timestamp = currentTime;
+            
+            // Update the display
+            const messageWithoutCount = message.replace(/ \(\d+ times\)$/, '');
+            messageData.element.textContent = `${messageWithoutCount} (${messageData.count} times)`;
+            
+            // Move the message to the bottom
+            chatMessages.appendChild(messageData.element);
+        } else {
+            // New message, create it
+            const messageElement = document.createElement('div');
+            messageElement.className = `chat-message ${type}`;
+            messageElement.textContent = message;
+            
+            chatMessages.appendChild(messageElement);
+            
+            // Track this message
+            this.recentMessages.set(message, {
+                count: 1,
+                timestamp: currentTime,
+                element: messageElement
+            });
+        }
+        
+        // Auto-scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Limit messages to prevent memory issues (keep last 50 messages)
+        while (chatMessages.children.length > 50) {
+            const removedElement = chatMessages.removeChild(chatMessages.firstChild);
+            
+            // Also remove from tracking if it's there
+            for (const [msg, data] of this.recentMessages.entries()) {
+                if (data.element === removedElement) {
+                    this.recentMessages.delete(msg);
+                    break;
+                }
+            }
+        }
     }
 }
 
