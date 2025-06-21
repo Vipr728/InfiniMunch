@@ -23,40 +23,36 @@
         "abhi (indian)",
         "go"
     ],
-    "('bob', 'go')": [
-        "bob",
-        "go"
+    "('abhi', 'abhi (1)')": [
+        "abhi (1)",
+        "abhi"
     ],
-    "('abhi (indian)', 'bob')": [
-        "bob",
-        "abhi (indian)"
+    "('Bob', 'Joseph')": [
+        "Bob",
+        "Joseph"
     ],
-    "('go', 'go')": [
-        "go",
-        "go"
+    "('Joseph', 'Joseph')": [
+        "Joseph",
+        "Joseph"
     ],
-    "('bob', 'bob the builder')": [
-        "bob",
-        "bob the builder"
+    "('Bob', 'Bob Ross')": [
+        "Bob Ross",
+        "Bob"
     ],
-    "('abhi (indian)', 'bob the builder')": [
-        "abhi (indian)",
-        "bob the builder"
+    "('Bob Ross', 'Joseph')": [
+        "Bob Ross",
+        "Joseph"
     ],
-    "('deodorant', 'pakistan')": [
-        "deodorant",
-        "pakistan"
+    "('Bob', 'Bob')": [
+        "Bob",
+        "Bob"
     ],
-    "('abhinav (indian)', 'pakistan')": [
-        "pakistan",
-        "abhinav (indian)"
+    "('God Eater', 'God eater eater')": [
+        "God eater eater",
+        "God Eater"
     ],
-    "('redditor', 'twitter user')": [
-        "twitter user",
-        "redditor"
-    ],
-    "('shwer', 'twitter user')": [
-        "shwer",
-        "twitter user"
+    "('God Eater', 'God Eater')": [
+        "God Eater",
+        "God Eater"
     ]
 }

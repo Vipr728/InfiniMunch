@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InfiniMunch</title>
+    <title>InfiniMunch - Fleet Commander</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="menu" class="screen">
         <h1>InfiniMunch</h1>
+        <h2>Fleet Commander</h2>
+        <p class="game-description">Command a fleet of 20 minions! When your minions collide with enemy minions, AI determines the winner based on name power. Winners infect losers, converting them to your army!</p>
         <div class="input-group">
             <div class="input-with-button">
-                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+                <input type="text" id="playerName" placeholder="Enter your commander name" maxlength="20">
                 <button id="joinButton" class="arrow-button">→</button>
             </div>
         </div>
@@ -21,12 +23,12 @@
     <div id="game" class="screen hidden">
         <div id="gameUI">
             <div id="playerInfo">
-                <span id="playerSize">Size: 20</span>
+                <span id="playerSize">Minions: 20</span>
                 <span id="playerName2"></span>
             </div>
             
             <div id="leaderboard">
-                <h3>Leaderboard</h3>
+                <h3>Fleet Commanders</h3>
                 <div id="leaderboardList">
                     <!-- Leaderboard entries will be populated by JavaScript -->
                 </div>
@@ -39,11 +41,12 @@
     <!-- Name Change Modal -->
     <div id="nameChangeModal" class="modal hidden">
         <div class="modal-content">
-            <h2>You Died!</h2>
+            <h2>Fleet Eliminated!</h2>
+            <p>Your entire fleet has been consumed! Would you like to change your commander name and respawn with a new fleet?</p>
             <div class="input-group">
                 <input type="text" id="newPlayerName" placeholder="" maxlength="20">
                 <div class="button-group">
-                    <button id="changeNameButton">Respawn</button>
+                    <button id="changeNameButton">Respawn Fleet</button>
                 </div>
             </div>
         </div>

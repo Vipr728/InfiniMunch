@@ -71,13 +71,33 @@ body::before {
 
 #menu h1 {
     font-size: 3em;
-    margin-bottom: 30px;
+    margin-bottom: 15px;
     text-shadow: 0 0 20px rgba(100, 200, 255, 0.8), 0 0 40px rgba(100, 200, 255, 0.4);
     background: linear-gradient(45deg, #64b5f6, #e1bee7, #90caf9);
     background-size: 300% 300%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: galaxyGlow 3s ease-in-out infinite alternate;
+}
+
+#menu h2 {
+    font-size: 1.5em;
+    margin-bottom: 15px;
+    color: #64b5f6;
+    text-shadow: 0 0 10px rgba(100, 181, 246, 0.5);
+}
+
+.game-description {
+    max-width: 450px;
+    margin: 0 auto 25px auto;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+    font-size: 0.9rem;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    border: 1px solid rgba(100, 181, 246, 0.3);
+    backdrop-filter: blur(5px);
 }
 
 @keyframes galaxyGlow {
