@@ -30,6 +30,16 @@ class AgarioGame {
         // Ad system
         this.adImages = [];
         
+        // Special items system
+        this.specialItems = new Map(); // item_id -> { x, y, type, adjective, collected }
+        this.adjectives = [
+            'Nonchalant', 'Strong', 'Shadow', 'Golden', 'Crystal', 'Startup-Accelerating', 'Buff', 'Weak-Like-Abhi',
+            'Cooked', 'High-WPM', 'FAANG', 'Indian', 'Epic', 'Brain-Rotted', 'Infernal', 'Underdeveloped',
+            'NeoVim-Using', 'Ethereal', '💀', 'Spatial', 'AI-Generated', 'Arch-Linux-Using', 'Cyber', 'MCP-Integrated',
+            'Rizzing', 'Obsidian', 'Hackathon-Winning', 'Terrible', 'Heavy', 'Diamond', 'Large', 'Currently-Cramping',
+            'Vibe-Coding', 'Merge-Conflicting',
+        ];
+        
         this.init();
     }
     
@@ -45,6 +55,9 @@ class AgarioGame {
         
         // Load ad images
         await this.loadAdImages();
+        
+        // Start special item spawning
+        this.startItemSpawning();
         
         this.setupEventListeners();
         this.connectToServer();
@@ -600,6 +613,10 @@ class AgarioGame {
         this.drawGrid();
         this.drawWorldBounds();
         this.drawMinions();
+        this.drawSpecialItems();
+        
+        // Check for item collection
+        this.checkItemCollection();
 
         // Restore to the original state before any transformations
         this.ctx.restore();
@@ -1081,6 +1098,164 @@ class AgarioGame {
             }
         }
     }
+    
+    // Special items system methods
+    spawnSpecialItem() {
+        const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const margin = 100; // Keep items away from world edges
+        
+        const item = {
+            id: itemId,
+            x: margin + Math.random() * (this.worldWidth - 2 * margin),
+            y: margin + Math.random() * (this.worldHeight - 2 * margin),
+            type: 'adjective',
+            adjective: this.adjectives[Math.floor(Math.random() * this.adjectives.length)],
+            collected: false,
+            spawnTime: Date.now(),
+            pulsePhase: Math.random() * Math.PI * 2 // Random starting phase for pulsing
+        };
+        
+        this.specialItems.set(itemId, item);
+        console.log(`Spawned special item: ${item.adjective} at (${item.x}, ${item.y})`);
+        
+        // Auto-remove item after 30 seconds if not collected
+        setTimeout(() => {
+            if (this.specialItems.has(itemId)) {
+                this.specialItems.delete(itemId);
+                console.log(`Special item ${itemId} expired`);
+            }
+        }, 30000);
+    }
+    
+    checkItemCollection() {
+        const myPlayer = this.players.get(this.myPlayerId);
+        if (!myPlayer) return;
+        
+        const collectionRadius = 50; // Distance to collect items
+        
+        this.specialItems.forEach((item, itemId) => {
+            if (item.collected) return;
+            
+            // Check distance from player's fleet center
+            const dx = item.x - myPlayer.fleet_center_x;
+            const dy = item.y - myPlayer.fleet_center_y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < collectionRadius) {
+                this.collectItem(item);
+            }
+        });
+    }
+    
+    collectItem(item) {
+        item.collected = true;
+        
+        // Add adjective to player's existing name
+        const myPlayer = this.players.get(this.myPlayerId);
+        if (myPlayer) {
+            const currentName = myPlayer.name;
+            const newName = `${item.adjective} ${currentName}`;
+            this.socket.emit('change_name', { name: newName });
+            
+            // Show collection effect
+            this.showItemCollectionEffect(item.x, item.y, item.adjective);
+            
+            // Add chat message
+            this.addChatMessage(`🎁 You found the ${item.adjective} power!`, 'item');
+            
+            console.log(`Collected item: ${item.adjective}, new name: ${newName}`);
+        }
+        
+        // Remove item from map
+        this.specialItems.delete(item.id);
+    }
+    
+    showItemCollectionEffect(x, y, adjective) {
+        const effect = document.createElement('div');
+        effect.className = 'item-collection-effect';
+        effect.innerHTML = `✨ ${adjective} ✨`;
+        effect.style.cssText = `
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 1000;
+            animation: itemCollectionPop 2s ease-out forwards;
+        `;
+        
+        // Convert world coordinates to screen coordinates
+        const scale = this.baseViewWidth / this.viewWidth;
+        const screenX = (x - this.cameraX) * scale;
+        const screenY = (y - this.cameraY) * scale;
+        
+        effect.style.left = (screenX - 50) + 'px';
+        effect.style.top = (screenY - 20) + 'px';
+        
+        document.getElementById('game').appendChild(effect);
+        
+        setTimeout(() => {
+            effect.remove();
+        }, 2000);
+    }
+    
+    drawSpecialItems() {
+        this.specialItems.forEach(item => {
+            if (item.collected) return;
+            
+            // Calculate pulsing effect
+            const time = Date.now() * 0.003; // Speed of pulse
+            const pulse = Math.sin(time + item.pulsePhase) * 0.3 + 1.0; // Pulse between 0.7 and 1.3
+            
+            const radius = 15 * pulse;
+            
+            // Draw glowing background
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.fillStyle = '#ffd700';
+            this.ctx.beginPath();
+            this.ctx.arc(item.x, item.y, radius + 5, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+            
+            // Draw main item circle
+            this.ctx.save();
+            this.ctx.fillStyle = '#ffd700';
+            this.ctx.beginPath();
+            this.ctx.arc(item.x, item.y, radius, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Draw border
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+            this.ctx.restore();
+            
+            // Draw star symbol
+            this.ctx.save();
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = `${Math.floor(12 * pulse)}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('⭐', item.x, item.y);
+            this.ctx.restore();
+        });
+    }
+    
+    startItemSpawning() {
+        // Spawn initial items
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => this.spawnSpecialItem(), i * 2000); // Spawn 3 items over 6 seconds
+        }
+        
+        // Continue spawning items every 15-25 seconds
+        setInterval(() => {
+            if (this.specialItems.size < 5) { // Max 5 items at once
+                this.spawnSpecialItem();
+            }
+        }, 15000 + Math.random() * 10000);
+    }
 }
 
 // Add CSS for infection effect animation
@@ -1097,6 +1272,29 @@ style.textContent = `
         }
         100% {
             transform: scale(1) translateY(-30px);
+            opacity: 0;
+        }
+    }
+    
+    @keyframes itemCollectionPop {
+        0% {
+            transform: scale(0.5) translateY(0);
+            opacity: 1;
+        }
+        25% {
+            transform: scale(1.3) translateY(-10px);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.1) translateY(-20px);
+            opacity: 0.8;
+        }
+        75% {
+            transform: scale(0.9) translateY(-30px);
+            opacity: 0.6;
+        }
+        100% {
+            transform: scale(0.7) translateY(-40px);
             opacity: 0;
         }
     }

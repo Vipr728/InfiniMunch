@@ -222,5 +222,9 @@
     "('ahbi', 'dog')": [
         "dog",
         "ahbi"
+    ],
+    "('Sapphire Swift player', 'Swift Phoenix Wolf Emerald sword')": [
+        "Sapphire Swift player",
+        "Swift Phoenix Wolf Emerald sword"
     ]
 }

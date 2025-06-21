@@ -64,13 +64,15 @@ async def static_handler(request):
     except Exception as e:
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
-# Add routes with CORS
+# Add routes
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
 
-# Apply CORS to all routes
+# Apply CORS only to static file routes (not Socket.IO routes)
 for route in list(app.router.routes()):
-    cors.add(route)
+    # Only apply CORS to routes that are not Socket.IO routes
+    if not route.resource.canonical.startswith('/socket.io'):
+        cors.add(route)
 
 # Game state
 players = {}
