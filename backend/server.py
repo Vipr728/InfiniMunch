@@ -7,16 +7,20 @@ import math
 import time
 import os
 from ai import ai_resolver
+from abhinav import WordWinnerResolver
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
     cors_allowed_origins="*",
     cors_credentials=False,
-    logger=True,
-    engineio_logger=True
+    logger=False,
+    engineio_logger=False
 )
 app = aiohttp.web.Application()
 sio.attach(app)
+
+# Create an instance of WordWinnerResolver
+word_resolver = WordWinnerResolver()
 
 # Add static file serving
 async def index_handler(request):
@@ -115,7 +119,7 @@ def check_collision(player1, player2):
 async def handle_collision(player1, player2):
     """Handle collision between two players - AI determines winner based on name power"""
     # Use AI to determine winner based on name power
-    winner_name, loser_name = await ai_resolver.determine_winner(player1.name, player2.name)
+    winner_name, loser_name = await word_resolver.determine_winner(player1.name, player2.name)
     
     # Find the actual player objects
     winner = player1 if winner_name == player1.name else player2
@@ -256,4 +260,4 @@ if __name__ == '__main__':
     # Start the game loop
     loop.create_task(game_loop())
     
-    aiohttp.web.run_app(app, host='localhost', port=8080, loop=loop) 
+    aiohttp.web.run_app(app, host='localhost', port=5000, loop=loop) 
