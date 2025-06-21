@@ -1,3 +1,9 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Prevent scrollbars */
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -6,9 +12,39 @@
 
 body {
     font-family: 'Arial', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: 
+        radial-gradient(ellipse at top, #1e1e3f 0%, #0f0f23 50%, #000000 100%),
+        radial-gradient(circle at 20% 80%, rgba(120, 50, 200, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 100, 150, 0.2) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(50, 150, 255, 0.2) 0%, transparent 50%);
     color: white;
-    overflow: hidden;
+    position: relative;
+}
+
+/* Animated stars */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        radial-gradient(2px 2px at 20px 30px, #eee, transparent),
+        radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.8), transparent),
+        radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+        radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.6), transparent),
+        radial-gradient(2px 2px at 160px 30px, #ddd, transparent);
+    background-repeat: repeat;
+    background-size: 200px 100px;
+    animation: sparkle 20s linear infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+
+@keyframes sparkle {
+    from { transform: translateY(0px); }
+    to { transform: translateY(-100px); }
 }
 
 .screen {
@@ -26,12 +62,27 @@ body {
 
 #menu {
     text-align: center;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 40px;
+    border-radius: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
 }
 
 #menu h1 {
     font-size: 3em;
     margin-bottom: 30px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    text-shadow: 0 0 20px rgba(100, 200, 255, 0.8), 0 0 40px rgba(100, 200, 255, 0.4);
+    background: linear-gradient(45deg, #64b5f6, #e1bee7, #90caf9);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: galaxyGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes galaxyGlow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
 }
 
 .input-group {
@@ -41,41 +92,59 @@ body {
 #playerName {
     padding: 12px 20px;
     font-size: 16px;
-    border: none;
+    border: 2px solid rgba(100, 200, 255, 0.5);
     border-radius: 25px;
     margin-right: 10px;
     outline: none;
     min-width: 200px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    backdrop-filter: blur(5px);
+}
+
+#playerName::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+#playerName:focus {
+    border-color: #64b5f6;
+    box-shadow: 0 0 15px rgba(100, 181, 246, 0.5);
 }
 
 #joinButton {
     padding: 12px 25px;
     font-size: 16px;
-    background: #4CAF50;
+    background: linear-gradient(45deg, #1e88e5, #7b1fa2);
     color: white;
     border: none;
     border-radius: 25px;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(30, 136, 229, 0.4);
 }
 
 #joinButton:hover {
-    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(30, 136, 229, 0.6);
 }
 
 #joinButton:disabled {
-    background: #cccccc;
+    background: rgba(100, 100, 100, 0.5);
     cursor: not-allowed;
 }
 
 #connectionStatus {
-    color: #ffeb3b;
+    color: #64b5f6;
     font-size: 14px;
+    background: rgba(0,0,0,0.7);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(100, 181, 246, 0.3);
 }
 
 #game {
     position: relative;
-    background: #000;
+    background: #000000;
 }
 
 #gameUI {
@@ -83,9 +152,12 @@ body {
     top: 20px;
     left: 20px;
     z-index: 10;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0, 0, 0, 0.8);
     padding: 15px;
     border-radius: 10px;
+    pointer-events: none; /* This makes the UI transparent to mouse events */
+    border: 1px solid rgba(100, 181, 246, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 #playerInfo {
@@ -96,28 +168,32 @@ body {
     display: block;
     margin-bottom: 5px;
     font-size: 14px;
+    color: #64b5f6;
+    text-shadow: 0 0 10px rgba(100, 181, 246, 0.5);
 }
 
 #instructions {
     font-size: 12px;
-    color: #ccc;
+    color: rgba(255, 255, 255, 0.8);
     max-width: 250px;
     line-height: 1.4;
 }
 
 #gameCanvas {
-    border: 2px solid #333;
-    background: #f0f0f0;
-    cursor: none;
+    border: 2px solid rgba(100, 181, 246, 0.5);
+    background: #0a0a20;
+    display: block; /* To prevent small extra space below canvas */
+    box-shadow: 0 0 30px rgba(100, 181, 246, 0.3);
 }
 
 .collision-effect {
     position: absolute;
     width: 20px;
     height: 20px;
-    background: #ff4444;
+    background: radial-gradient(circle, #ff6b6b, #feca57);
     border-radius: 50%;
     animation: collisionBurst 0.5s ease-out forwards;
+    box-shadow: 0 0 20px #ff6b6b;
 }
 
 @keyframes collisionBurst {

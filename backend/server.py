@@ -13,10 +13,25 @@ sio.attach(app)
 
 # Game state
 players = {}
-WORLD_WIDTH = 800
-WORLD_HEIGHT = 600
+WORLD_WIDTH = 2000
+WORLD_HEIGHT = 1500
 INITIAL_SIZE = 20
-MOVE_SPEED = 2
+# --- Constants for a professional, time-based physics model ---
+# Speeds are now in pixels per SECOND, not pixels per tick.
+BASE_MAX_SPEED = 270.0    # 4.5 pixels/tick * 60 ticks/sec
+MIN_SPEED = 90.0          # 1.5 pixels/tick * 60 ticks/sec
+
+# Matplotlib Pastel1 color palette for beautiful blob colors
+PASTEL_COLORS = [
+    "#fbb4ae",  # Light pink
+    "#b3cde3",  # Light blue
+    "#ccebc5",  # Light green
+    "#decbe4",  # Light purple
+    "#fed9a6",  # Light orange
+    "#ffffcc",  # Light yellow
+    "#e5d8bd",  # Light beige
+    "#fddaec",  # Light magenta
+]
 
 class Player:
     def __init__(self, player_id, name):
@@ -25,9 +40,10 @@ class Player:
         self.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
         self.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
         self.size = INITIAL_SIZE
-        self.color = f"#{random.randint(0, 0xFFFFFF):06x}"
-        self.target_x = self.x
-        self.target_y = self.y
+        # Use pastel colors instead of random colors
+        self.color = random.choice(PASTEL_COLORS)
+        self.direction_dx = 0
+        self.direction_dy = 0
         
     def to_dict(self):
         return {
@@ -39,19 +55,24 @@ class Player:
             'color': self.color,
         }
     
-    def move_towards_target(self):
-        dx = self.target_x - self.x
-        dy = self.target_y - self.y
-        distance = math.sqrt(dx**2 + dy**2)
+    def get_max_speed(self):
+        """Calculates max speed based on size. Larger players are slower."""
+        size_for_min_speed = 400  # The size at which a player reaches MIN_SPEED
+        if self.size >= size_for_min_speed:
+            return MIN_SPEED
         
-        if distance > 1:
-            # Normalize and apply speed
-            self.x += (dx / distance) * MOVE_SPEED
-            self.y += (dy / distance) * MOVE_SPEED
-            
-            # Keep within bounds
-            self.x = max(self.size, min(WORLD_WIDTH - self.size, self.x))
-            self.y = max(self.size, min(WORLD_HEIGHT - self.size, self.y))
+        if self.size <= INITIAL_SIZE:
+            return BASE_MAX_SPEED
+
+        # Linearly interpolate speed between BASE_MAX_SPEED and MIN_SPEED
+        speed_range = BASE_MAX_SPEED - MIN_SPEED
+        size_range = size_for_min_speed - INITIAL_SIZE
+        
+        # Calculate how far into the size range the player is
+        size_progress = (self.size - INITIAL_SIZE) / size_range
+        
+        speed = BASE_MAX_SPEED - (size_progress * speed_range)
+        return speed
 
 def check_collision(player1, player2):
     """Check if two players are colliding"""
@@ -75,7 +96,7 @@ def handle_collision(player1, player2):
         loser.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
         loser.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
         loser.size = INITIAL_SIZE
-        loser.color = f"#{random.randint(0, 0xFFFFFF):06x}"
+        loser.color = random.choice(PASTEL_COLORS)
     
     return winner, loser
 
@@ -110,23 +131,44 @@ async def join_game(sid, data):
 @sio.event
 async def move_player(sid, data):
     if sid not in players:
-        print(f"Player {sid} not found in players dict")
         return
         
     player = players[sid]
-    player.target_x = max(player.size, min(WORLD_WIDTH - player.size, data['x']))
-    player.target_y = max(player.size, min(WORLD_HEIGHT - player.size, data['y']))
-    print(f"Player {sid} moving to ({player.target_x}, {player.target_y})")
+    # Client now sends a direction vector {dx, dy}
+    player.direction_dx = data.get('dx', 0)
+    player.direction_dy = data.get('dy', 0)
 
 async def game_loop():
-    """Main game loop"""
+    """Main game loop - now using a delta time model for frame-rate independence."""
+    last_time = time.time()
+    
     while True:
-        if len(players) > 1:
-            # Move all players
+        # --- Delta Time Calculation ---
+        current_time = time.time()
+        delta_time = current_time - last_time
+        last_time = current_time
+        # Clamp delta_time to prevent huge jumps if server has a major lag spike
+        delta_time = min(delta_time, 0.1)
+
+        # --- Player Movement ---
+        if len(players) >= 1:
             for player in players.values():
-                player.move_towards_target()
-            
-            # Check collisions
+                max_speed = player.get_max_speed() # speed in pixels per second
+                
+                direction_magnitude = math.sqrt(player.direction_dx**2 + player.direction_dy**2)
+
+                if direction_magnitude > 1: # If the cursor is not on the player
+                    # Calculate displacement based on speed and the exact time elapsed
+                    displacement = max_speed * delta_time
+                    
+                    player.x += (player.direction_dx / direction_magnitude) * displacement
+                    player.y += (player.direction_dy / direction_magnitude) * displacement
+                
+                # Keep within bounds (using size/2 for radius)
+                player.x = max(player.size / 2, min(WORLD_WIDTH - player.size / 2, player.x))
+                player.y = max(player.size / 2, min(WORLD_HEIGHT - player.size / 2, player.y))
+
+            # --- Collision Detection ---
             player_list = list(players.values())
             for i in range(len(player_list)):
                 for j in range(i + 1, len(player_list)):
@@ -140,17 +182,28 @@ async def game_loop():
                             'loser': loser.to_dict(),
                         })
             
-            # Send updated game state
+            # Send updated game state to all clients
             await sio.emit('update_players', [p.to_dict() for p in players.values()])
         
-        await asyncio.sleep(1/60)  # 60 FPS
+        # Yield control to the event loop. The exact sleep duration is no longer critical for physics.
+        await asyncio.sleep(1/60)
+
+# --- Aiohttp application setup for clean startup/shutdown ---
+
+async def start_background_tasks(app):
+    """Starts the game loop as a background task."""
+    app['game_loop'] = asyncio.create_task(game_loop())
+
+async def cleanup_background_tasks(app):
+    """Cancels the game loop task on shutdown."""
+    app['game_loop'].cancel()
+    try:
+        await app['game_loop']
+    except asyncio.CancelledError:
+        pass
+
+app.on_startup.append(start_background_tasks)
+app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    # Run the server
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Start the game loop
-    loop.create_task(game_loop())
-    
-    aiohttp.web.run_app(app, host='localhost', port=5000, loop=loop) 
+    aiohttp.web.run_app(app, host='localhost', port=5000) 
