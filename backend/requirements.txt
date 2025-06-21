@@ -1,6 +1,5 @@
 python-socketio==5.13.0
 aiohttp==3.9.1
 aiohttp-cors==0.7.0
-uuid
 google-generativeai==0.3.2
 python-dotenv==1.0.0 

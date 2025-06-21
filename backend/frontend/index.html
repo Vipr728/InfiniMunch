@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfiniMunch - Fleet Commander</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="menu" class="screen">
+        <h1>InfiniMunch</h1>
+        <h2>Concept: AI logic game of the future</h2>
+        <p class="game-description">Enter the strongest name you can think of, e.g. butterknife would beat butter</p>
+        <div class="input-group">
+            <div class="input-with-button">
+                <input type="text" id="playerName" placeholder="Enter the strongest name you can think of..." maxlength="20">
+                <button id="joinButton" class="arrow-button">→</button>
+            </div>
+        </div>
+        <div id="connectionStatus">Connecting to server...</div>
+    </div>
+
+    <div id="game" class="screen hidden">
+        <div id="gameUI">
+            <div id="playerInfo">
+                <span id="playerSize">Minions: 5</span>
+                <span id="playerName2"></span>
+            </div>
+            
+            <div id="leaderboard">
+                <h3>Leaderboard</h3>
+                <div id="leaderboardList">
+                    <!-- Leaderboard entries will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Log Overlay -->
+        <div id="chatLog">
+            <div id="chatMessages">
+                <!-- Chat messages will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- Name Change Modal -->
+    <div id="nameChangeModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Fleet Eliminated!</h2>
+            <p>Your entire fleet has been consumed! Choose a more powerful name to respawn with a stronger fleet!</p>
+            <p class="modal-tip"><strong>💡 Tip:</strong> Try names like "Phoenix", "Thunder", "Vortex" - powerful names win more battles!</p>
+            <div class="input-group">
+                <input type="text" id="newPlayerName" placeholder="Enter a powerful name..." maxlength="20">
+                <div class="button-group">
+                    <button id="changeNameButton">Respawn Fleet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 
