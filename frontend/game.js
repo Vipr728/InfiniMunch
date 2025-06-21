@@ -292,7 +292,7 @@ class AgarioGame {
             const canvasX = e.clientX - rect.left;
             const canvasY = e.clientY - rect.top;
 
-            // Calculate direction vector from fleet center (screen center) to mouse
+            // Calculate direction vector f/rom fleet center (screen center) to mouse
             const dx = canvasX - (this.baseViewWidth / 2);
             const dy = canvasY - (this.baseViewHeight / 2);
 
@@ -307,7 +307,7 @@ class AgarioGame {
     }
     
     connectToServer() {
-        this.socket = io('http://localhost:5000');
+        this.socket = io('http://infinimuch.onrender.com');
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
