@@ -106,11 +106,11 @@ class AgarioGame {
     updateCamera() {
         const myPlayer = this.players.get(this.myPlayerId);
         if (myPlayer) {
-            // Calculate zoom based on minion count (more minions = see more of world)
-            const baseCount = 20; // Initial minion count
+            // Calculate zoom based on minion count (much less dramatic zoom out)
+            const baseCount = 5; // New initial minion count
             const countRatio = myPlayer.minion_count / baseCount;
-            // More minions = bigger view area
-            this.zoom = Math.max(1, Math.min(2.5, 1 + (countRatio - 1) * 0.3)); // Zoom range: 1x to 2.5x
+            // Much less zoom out - only slight increase in view area
+            this.zoom = Math.max(1, Math.min(1.5, 1 + (countRatio - 1) * 0.1)); // Zoom range: 1x to 1.5x
             
             // Update view dimensions - bigger zoom = bigger view area
             this.viewWidth = this.baseViewWidth * this.zoom;
@@ -214,7 +214,12 @@ class AgarioGame {
         this.socket.on('player_joined', (player) => {
             console.log('Player joined:', player);
             this.players.set(player.id, player);
-            this.updateUI();
+            
+            // If this is our own respawn, update UI
+            if (player.id === this.myPlayerId) {
+                console.log('Successfully respawned!');
+                this.updateUI();
+            }
         });
         
         this.socket.on('player_left', (data) => {
@@ -259,7 +264,7 @@ class AgarioGame {
         this.socket.on('player_eliminated', (data) => {
             console.log('Player eliminated:', data);
             if (data.player_id === this.myPlayerId) {
-                // Current player was eliminated
+                // Current player was eliminated - show respawn modal
                 this.showNameChangeModal(this.players.get(this.myPlayerId)?.name || '');
             }
         });
@@ -475,63 +480,189 @@ class AgarioGame {
     
     drawMinion(minion) {
         const isMyMinion = this.players.get(this.myPlayerId)?.id === minion.owner_id;
+        const radius = minion.size / 2;
+        const isInvulnerable = minion.is_invulnerable || false;
         
-        // Draw minion blob
+        // Draw very subtle glow effect for own minions
+        if (isMyMinion) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.1;
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.arc(minion.x, minion.y, radius + 2, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+        
+        // Draw invulnerability shield effect
+        if (isInvulnerable) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.3;
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([4, 4]);
+            this.ctx.beginPath();
+            this.ctx.arc(minion.x, minion.y, radius + 3, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+        }
+        
+        // Draw disk-like blob with translucent fill
+        this.ctx.save();
+        this.ctx.globalAlpha = isInvulnerable ? 0.4 : 0.6; // More transparent when invulnerable
         this.ctx.fillStyle = minion.color;
         this.ctx.beginPath();
-        this.ctx.arc(minion.x, minion.y, minion.size / 2, 0, Math.PI * 2);
+        this.ctx.arc(minion.x, minion.y, radius, 0, Math.PI * 2);
         this.ctx.fill();
+        this.ctx.restore();
         
-        // Draw outline
-        this.ctx.strokeStyle = isMyMinion ? '#ffffff' : '#333333';
-        this.ctx.lineWidth = isMyMinion ? 2 : 1;
+        // Draw opaque border
+        this.ctx.strokeStyle = minion.color;
+        this.ctx.globalAlpha = isInvulnerable ? 0.7 : 0.9; // Less opaque when invulnerable
+        this.ctx.lineWidth = isMyMinion ? 3 : 2.5;
+        this.ctx.beginPath();
+        this.ctx.arc(minion.x, minion.y, radius, 0, Math.PI * 2);
         this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0; // Reset alpha
         
-        // Draw original name (smaller font for minions)
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = '10px Arial';
+        // Add white border for own minions
+        if (isMyMinion) {
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.5;
+            this.ctx.beginPath();
+            this.ctx.arc(minion.x, minion.y, radius + 1, 0, Math.PI * 2);
+            this.ctx.stroke();
+        }
+        
+        // Draw name with better readability
+        this.drawMinionName(minion, isMyMinion);
+    }
+    
+    drawMinionName(minion, isMyMinion) {
+        const text = minion.original_name;
+        const fontSize = Math.max(10, Math.min(14, minion.size * 0.8));
+        this.ctx.font = `bold ${fontSize}px Arial`;
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(minion.original_name, minion.x, minion.y + 3);
+        this.ctx.textBaseline = 'middle';
+        
+        // Draw text outline for better contrast (no background box)
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeText(text, minion.x, minion.y);
+        
+        // Draw main text
+        this.ctx.fillStyle = isMyMinion ? '#ffffff' : '#ffffff';
+        this.ctx.fillText(text, minion.x, minion.y);
+    }
+    
+    // Helper function to lighten a color
+    lightenColor(color, percent) {
+        // Convert hex to RGB
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        
+        // Lighten each component
+        const newR = Math.min(255, Math.floor(r + (255 - r) * percent / 100));
+        const newG = Math.min(255, Math.floor(g + (255 - g) * percent / 100));
+        const newB = Math.min(255, Math.floor(b + (255 - b) * percent / 100));
+        
+        return `rgb(${newR}, ${newG}, ${newB})`;
+    }
+    
+    // Helper function to darken a color
+    darkenColor(color, percent) {
+        // Convert hex to RGB
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        
+        // Darken each component
+        const newR = Math.floor(r * (100 - percent) / 100);
+        const newG = Math.floor(g * (100 - percent) / 100);
+        const newB = Math.floor(b * (100 - percent) / 100);
+        
+        return `rgb(${newR}, ${newG}, ${newB})`;
     }
     
     renderMinimap() {
         if (!this.minimapCtx) return;
         
-        // Clear minimap
-        this.minimapCtx.fillStyle = '#333333';
+        // Clear minimap with space theme
+        const minimapGradient = this.minimapCtx.createLinearGradient(0, 0, 150, 112);
+        minimapGradient.addColorStop(0, '#0a0a20');
+        minimapGradient.addColorStop(1, '#1a1a3a');
+        this.minimapCtx.fillStyle = minimapGradient;
         this.minimapCtx.fillRect(0, 0, 150, 112);
         
         // Draw world bounds
-        this.minimapCtx.strokeStyle = '#666666';
-        this.minimapCtx.lineWidth = 1;
-        this.minimapCtx.strokeRect(0, 0, 150, 112);
+        this.minimapCtx.strokeStyle = 'rgba(100, 181, 246, 0.6)';
+        this.minimapCtx.lineWidth = 2;
+        this.minimapCtx.strokeRect(1, 1, 148, 110);
         
         // Scale factors
-        const scaleX = 150 / this.worldWidth;
-        const scaleY = 112 / this.worldHeight;
+        const scaleX = 148 / this.worldWidth;
+        const scaleY = 110 / this.worldHeight;
         
-        // Draw minions on minimap
+        // Draw minions on minimap with enhanced visuals
         this.minions.forEach(minion => {
-            const x = minion.x * scaleX;
-            const y = minion.y * scaleY;
-            const size = Math.max(1, minion.size * scaleX * 0.3);
+            const x = minion.x * scaleX + 1;
+            const y = minion.y * scaleY + 1;
+            const size = Math.max(2, minion.size * scaleX * 0.4);
             
             const isMyMinion = this.players.get(this.myPlayerId)?.id === minion.owner_id;
-            this.minimapCtx.fillStyle = isMyMinion ? '#ffffff' : minion.color;
+            
+            // Draw glow for my minions
+            if (isMyMinion) {
+                this.minimapCtx.save();
+                this.minimapCtx.globalAlpha = 0.4;
+                this.minimapCtx.fillStyle = '#ffffff';
+                this.minimapCtx.beginPath();
+                this.minimapCtx.arc(x, y, size + 1, 0, Math.PI * 2);
+                this.minimapCtx.fill();
+                this.minimapCtx.restore();
+            }
+            
+            // Draw minion with translucent fill
+            this.minimapCtx.save();
+            this.minimapCtx.globalAlpha = 0.6;
+            this.minimapCtx.fillStyle = minion.color;
             this.minimapCtx.beginPath();
             this.minimapCtx.arc(x, y, size, 0, Math.PI * 2);
             this.minimapCtx.fill();
+            this.minimapCtx.restore();
+            
+            // Draw opaque border
+            this.minimapCtx.strokeStyle = minion.color;
+            this.minimapCtx.globalAlpha = 0.9;
+            this.minimapCtx.lineWidth = isMyMinion ? 1.5 : 1;
+            this.minimapCtx.beginPath();
+            this.minimapCtx.arc(x, y, size, 0, Math.PI * 2);
+            this.minimapCtx.stroke();
+            this.minimapCtx.globalAlpha = 1.0;
+            
+            // Add white border for my minions
+            if (isMyMinion) {
+                this.minimapCtx.strokeStyle = '#ffffff';
+                this.minimapCtx.lineWidth = 1;
+                this.minimapCtx.beginPath();
+                this.minimapCtx.arc(x, y, size + 0.5, 0, Math.PI * 2);
+                this.minimapCtx.stroke();
+            }
         });
         
-        // Draw viewport indicator
-        const viewX = this.cameraX * scaleX;
-        const viewY = this.cameraY * scaleY;
+        // Draw viewport indicator with better styling
+        const viewX = this.cameraX * scaleX + 1;
+        const viewY = this.cameraY * scaleY + 1;
         const viewW = this.viewWidth * scaleX;
         const viewH = this.viewHeight * scaleY;
         
         this.minimapCtx.strokeStyle = '#ffffff';
-        this.minimapCtx.lineWidth = 1;
+        this.minimapCtx.lineWidth = 2;
+        this.minimapCtx.setLineDash([3, 3]);
         this.minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
+        this.minimapCtx.setLineDash([]); // Reset line dash
     }
     
     updateUI() {
@@ -629,6 +760,10 @@ class AgarioGame {
         }
         
         if (this.socket && this.socket.connected) {
+            // Clear current game state before respawning
+            this.players.clear();
+            this.minions.clear();
+            
             this.socket.emit('change_name', { name: newName });
         }
         

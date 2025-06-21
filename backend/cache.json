@@ -54,5 +54,169 @@
     "('God Eater', 'God Eater')": [
         "God Eater",
         "God Eater"
+    ],
+    "('Joseph', 'Ross')": [
+        "Ross",
+        "Joseph"
+    ],
+    "('BOb', 'Josehp')": [
+        "BOb",
+        "Josehp"
+    ],
+    "('Josehp', 'Josehp')": [
+        "Josehp",
+        "Josehp"
+    ],
+    "('Joseph', 'bob')": [
+        "bob",
+        "Joseph"
+    ],
+    "('Bob', 'bob')": [
+        "bob",
+        "Bob"
+    ],
+    "('Bob', 'Bob ross')": [
+        "Bob ross",
+        "Bob"
+    ],
+    "('Bob ross', 'Joseph')": [
+        "Bob ross",
+        "Joseph"
+    ],
+    "('Bob', 'Jojo')": [
+        "Jojo",
+        "Bob"
+    ],
+    "('Abhi', 'Joseph')": [
+        "Abhi",
+        "Joseph"
+    ],
+    "('Chat', 'Joseph')": [
+        "Chat",
+        "Joseph"
+    ],
+    "('Abhi', 'Chat')": [
+        "Chat",
+        "Abhi"
+    ],
+    "('Abhi', 'Abhi')": [
+        "Abhi",
+        "Abhi"
+    ],
+    "('Dog', 'Joseph')": [
+        "Dog",
+        "Joseph"
+    ],
+    "('Chat', 'Dog')": [
+        "Dog",
+        "Chat"
+    ],
+    "('Abhi', 'Dog')": [
+        "Dog",
+        "Abhi"
+    ],
+    "('Chat', 'Chat')": [
+        "Chat",
+        "Chat"
+    ],
+    "('Dog', 'God')": [
+        "Dog",
+        "God"
+    ],
+    "('God', 'God')": [
+        "God",
+        "God"
+    ],
+    "('God', 'Joseph')": [
+        "God",
+        "Joseph"
+    ],
+    "('Abhi', 'God')": [
+        "God",
+        "Abhi"
+    ],
+    "('Black hole', 'Dog')": [
+        "Dog",
+        "Black hole"
+    ],
+    "('Black hole', 'Black hole')": [
+        "Black hole",
+        "Black hole"
+    ],
+    "('Joseph', 'sun')": [
+        "sun",
+        "Joseph"
+    ],
+    "('Abhi', 'sun')": [
+        "sun",
+        "Abhi"
+    ],
+    "('God', 'sun')": [
+        "sun",
+        "God"
+    ],
+    "('BLACK HOLE', 'Joseph')": [
+        "BLACK HOLE",
+        "Joseph"
+    ],
+    "('BLACK HOLE', 'God')": [
+        "BLACK HOLE",
+        "God"
+    ],
+    "('BLACK HOLE', 'sun')": [
+        "BLACK HOLE",
+        "sun"
+    ],
+    "('sun', 'sun')": [
+        "sun",
+        "sun"
+    ],
+    "('Abhi', 'BLACK HOLE')": [
+        "BLACK HOLE",
+        "Abhi"
+    ],
+    "('BLACK HOLE', 'Bob')": [
+        "Bob",
+        "BLACK HOLE"
+    ],
+    "('Bob', 'God')": [
+        "Bob",
+        "God"
+    ],
+    "('Bob', 'sun')": [
+        "Bob",
+        "sun"
+    ],
+    "('Abhi', 'Bob')": [
+        "Bob",
+        "Abhi"
+    ],
+    "('BLACK HOLE', 'Dog')": [
+        "Dog",
+        "BLACK HOLE"
+    ],
+    "('BLACK HOLE', 'BLACK HOLE')": [
+        "BLACK HOLE",
+        "BLACK HOLE"
+    ],
+    "('Bob', 'Dog')": [
+        "Dog",
+        "Bob"
+    ],
+    "('Dog', 'sun')": [
+        "Dog",
+        "sun"
+    ],
+    "('Chat', 'God')": [
+        "Chat",
+        "God"
+    ],
+    "('Chat', 'chat')": [
+        "Chat",
+        "chat"
+    ],
+    "('Chat', 'bob')": [
+        "Chat",
+        "bob"
     ]
 }
