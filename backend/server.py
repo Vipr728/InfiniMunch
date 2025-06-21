@@ -1,36 +1,72 @@
 import socketio
 import aiohttp.web
-import aiohttp_cors
 import uuid
 import asyncio
 import random
 import math
 import time
 import os
-from ai import determine_winner_with_cache
+
+# Try to import AI module, but don't fail if it's not available
+try:
+    from ai import determine_winner_with_cache
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI module not available: {e}")
+    AI_AVAILABLE = False
+    
+    # Fallback function
+    async def determine_winner_with_cache(player1_name, player2_name):
+        winner_name = random.choice([player1_name, player2_name])
+        loser_name = player2_name if winner_name == player1_name else player1_name
+        return winner_name, loser_name
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
+    cors_allowed_origins="*",  # Changed from ["*"] to "*" - string format works better
     cors_credentials=False,
-    logger=False,
-    engineio_logger=False
+    logger=False,  # Disable logging to reduce CORS error spam
+    engineio_logger=False,
+    async_mode='aiohttp',
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=1e6
 )
 app = aiohttp.web.Application()
-
-# Add CORS middleware to aiohttp
-cors = aiohttp_cors.setup(app, defaults={
-    "*": aiohttp_cors.ResourceOptions(
-        allow_credentials=False,
-        expose_headers="*",
-        allow_headers="*",
-        allow_methods="*"
-    )
-})
-
 sio.attach(app)
 
+# Add CORS middleware
+async def cors_middleware(app, handler):
+    async def middleware(request):
+        if request.method == 'OPTIONS':
+            response = aiohttp.web.Response()
+        else:
+            response = await handler(request)
+        
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
+    return middleware
+
+app.middlewares.append(cors_middleware)
+
 # Add static file serving
+async def health_check(request):
+    """Health check endpoint for OnRender"""
+    return aiohttp.web.Response(text='OK', content_type='text/plain')
+
+async def test_endpoint(request):
+    """Test endpoint to verify server is working"""
+    status = {
+        'status': 'running',
+        'ai_available': AI_AVAILABLE,
+        'players_count': len(players),
+        'minions_count': len(minions),
+        'timestamp': time.time()
+    }
+    return aiohttp.web.json_response(status)
+
 async def index_handler(request):
     """Serve the main HTML file"""
     try:
@@ -41,7 +77,7 @@ async def index_handler(request):
         return aiohttp.web.Response(text='Frontend not found', status=404)
 
 async def static_handler(request):
-    """Serve static files (CSS, JS)"""
+    """Serve static files (CSS, JS, images)"""
     try:
         file_path = request.match_info['path']
         full_path = f'../frontend/{file_path}'
@@ -49,30 +85,47 @@ async def static_handler(request):
         if not os.path.exists(full_path):
             return aiohttp.web.Response(text='File not found', status=404)
         
-        with open(full_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Determine content type
+        # Determine content type based on file extension
         if file_path.endswith('.css'):
             content_type = 'text/css'
+            mode = 'r'
+            encoding = 'utf-8'
         elif file_path.endswith('.js'):
             content_type = 'application/javascript'
+            mode = 'r'
+            encoding = 'utf-8'
+        elif file_path.endswith('.png'):
+            content_type = 'image/png'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
+            content_type = 'image/jpeg'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.gif'):
+            content_type = 'image/gif'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.ico'):
+            content_type = 'image/x-icon'
+            mode = 'rb'
+            encoding = None
         else:
             content_type = 'text/plain'
+            mode = 'r'
+            encoding = 'utf-8'
         
-        return aiohttp.web.Response(text=content, content_type=content_type)
+        # Read file with appropriate mode
+        with open(full_path, mode, encoding=encoding) as f:
+            content = f.read()
+        
+        return aiohttp.web.Response(body=content, content_type=content_type)
     except Exception as e:
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
 # Add routes
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
-
-# Apply CORS only to static file routes (not Socket.IO routes)
-for route in list(app.router.routes()):
-    # Only apply CORS to routes that are not Socket.IO routes
-    if not route.resource.canonical.startswith('/socket.io'):
-        cors.add(route)
 
 # Game state
 players = {}
@@ -81,10 +134,11 @@ WORLD_WIDTH = 2000
 WORLD_HEIGHT = 1500
 MINION_SIZE = 45
 FLEET_SIZE = 5
+INITIAL_SIZE = 50  # Initial size for respawned players
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
-BASE_MAX_SPEED = 200.0    # Base speed for minions
-MIN_SPEED = 120.0         # Minimum speed
+BASE_MAX_SPEED = 500.0    # Base speed for minions (increased from 200.0 for much faster gameplay)
+MIN_SPEED = 300.0         # Minimum speed (increased from 120.0)
 
 # Original Matplotlib Pastel1 color palette for beautiful blob colors
 PASTEL_COLORS = [
@@ -205,23 +259,34 @@ async def handle_minion_collision(minion1, minion2):
     """Handle collision between two minions - winner infects loser"""
     # Don't handle collision if minions have same owner
     if minion1.owner_id == minion2.owner_id:
-        return None, None
-    
+        return
+
     # Use AI to determine winner based on original names
-    winner_name, loser_name = await determine_winner_with_cache(minion1.original_name, minion2.original_name)
+    winner_name, original_loser_name = await determine_winner_with_cache(minion1.original_name, minion2.original_name)
     
     # Find the actual minion objects
     winner = minion1 if winner_name == minion1.original_name else minion2
     loser = minion2 if winner == minion1 else minion1
+
+    print(f"AI determined '{winner.original_name}' wins over '{original_loser_name}' - infecting!")
     
-    print(f"AI determined '{winner.original_name}' wins over '{loser.original_name}' - infecting!")
-    
-    # Winner infects loser - loser changes owner and color but keeps original name
+    # Preserve the loser's data before it's changed
+    loser_dict = loser.to_dict()
+    loser_dict['original_name'] = original_loser_name
+
+    # Winner infects loser - loser changes owner, color, and takes on winner's name
     old_owner_id = loser.owner_id
     loser.owner_id = winner.owner_id
     loser.color = winner.color
+    loser.original_name = winner.original_name  # Infected minion takes on winner's name
     loser.last_infection_time = time.time()  # Set invulnerability period
     
+    # Emit infection event with correct original names
+    await sio.emit('infection_happened', {
+        'winner': winner.to_dict(),
+        'loser': loser_dict
+    })
+
     # Check if any player has lost all their minions
     old_owner = players.get(old_owner_id)
     if old_owner and len(old_owner.get_owned_minions()) == 0:
@@ -231,13 +296,13 @@ async def handle_minion_collision(minion1, minion2):
             'player_name': old_owner.name
         })
         print(f'Player {old_owner.name} has been eliminated!')
-    
-    return winner, loser
 
 @sio.event
 async def connect(sid, environ):
     print(f'Client {sid} connected')
     print(f'Connection details: {environ.get("HTTP_USER_AGENT", "Unknown")}')
+    print(f'Remote address: {environ.get("REMOTE_ADDR", "Unknown")}')
+    print(f'HTTP headers: {dict(environ)}')
 
 @sio.event
 async def disconnect(sid):
@@ -304,7 +369,7 @@ async def change_name(sid, data):
     player = players[sid]
     new_name = data.get('name', '').strip()
     
-    if not new_name or new_name == player.name:
+    if not new_name:
         return
 
     # Check if the name is already taken by another player
@@ -318,6 +383,7 @@ async def change_name(sid, data):
     
     # Check if player is eliminated (has no minions) - if so, respawn them
     owned_minions = player.get_owned_minions()
+    same_name = new_name == old_name
     if len(owned_minions) == 0:
         print(f'Respawning eliminated player {old_name} as {new_name}')
         
@@ -330,18 +396,24 @@ async def change_name(sid, data):
         player.color = random.choice(PASTEL_COLORS)  # Get new color
         player.create_fleet()
         
-        # Send updated game state to the respawned player
-        await sio.emit('game_state', {
+        # Send updated game state to ALL players to ensure synchronization
+        game_state_data = {
             'players': [p.to_dict() for p in players.values()],
             'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
             'all_minions': [m.to_dict() for m in minions.values()],
-        }, room=sid)
+        }
         
-        # Notify others about respawned player
-        await sio.emit('player_joined', player.to_dict(), skip_sid=sid)
+        # Send to the respawned player first
+        await sio.emit('game_state', game_state_data, room=sid)
+        
+        # Send to all other players as well to keep everyone in sync
+        await sio.emit('update_game_state', {
+            'players': game_state_data['players'],
+            'all_minions': game_state_data['all_minions']
+        }, skip_sid=sid)
         
         print(f'Player {new_name} respawned with {FLEET_SIZE} new minions')
-    else:
+    elif not same_name:
         # Update all minions that were originally owned by this player
         for minion in minions.values():
             if minion.original_name == old_name:
@@ -356,6 +428,18 @@ async def change_name(sid, data):
         
         print(f'Player {old_name} changed name to {new_name}')
 
+def is_within_rounded_bounds(x, y, size):
+    """Check if a position is within the rounded world bounds"""
+    # For now, just check rectangular bounds since we don't have rounded corners implemented
+    return size/2 <= x <= WORLD_WIDTH - size/2 and size/2 <= y <= WORLD_HEIGHT - size/2
+
+def clamp_to_rounded_bounds(x, y, size):
+    """Clamp a position to be within the rounded world bounds"""
+    # For now, just clamp to rectangular bounds
+    clamped_x = max(size/2, min(WORLD_WIDTH - size/2, x))
+    clamped_y = max(size/2, min(WORLD_HEIGHT - size/2, y))
+    return clamped_x, clamped_y
+
 @sio.event
 async def respawn_player(sid, data):
     """Handle player respawn request"""
@@ -365,38 +449,38 @@ async def respawn_player(sid, data):
     player = players[sid]
     current_time = time.time()
     
+    # Remove any existing minions for this player
+    minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
+    for m_id in minions_to_remove:
+        del minions[m_id]
+    
     # Respawn the player
     player.is_dead = False
-    
-    # Spawn within rounded bounds
-    max_attempts = 50
-    for attempt in range(max_attempts):
-        # Generate position within the main rectangular area
-        spawn_x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        spawn_y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
-        
-        # Check if it's within rounded bounds
-        if is_within_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE):
-            player.x = spawn_x
-            player.y = spawn_y
-            break
-    else:
-        # If we can't find a good position, use the clamp function
-        player.x, player.y = clamp_to_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE)
-    
-    player.size = INITIAL_SIZE
     player.color = random.choice(PASTEL_COLORS)
+    
+    # Create new fleet for respawned player - this is the crucial missing part!
+    player.create_fleet()
     
     # Give 3 seconds of invulnerability
     player.invulnerable_until = current_time + 3.0
     
-    # Notify all clients about the respawn
-    await sio.emit('player_respawned', {
-        'player_id': sid,
-        'player': player.to_dict()
-    })
+    # Send updated game state to ALL players to ensure synchronization
+    game_state_data = {
+        'players': [p.to_dict() for p in players.values()],
+        'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+        'all_minions': [m.to_dict() for m in minions.values()],
+    }
     
-    print(f'Player {player.name} respawned')
+    # Send to the respawned player first
+    await sio.emit('game_state', game_state_data, room=sid)
+    
+    # Send to all other players as well to keep everyone in sync
+    await sio.emit('update_game_state', {
+        'players': game_state_data['players'],
+        'all_minions': game_state_data['all_minions']
+    }, skip_sid=sid)
+    
+    print(f'Player {player.name} respawned with {FLEET_SIZE} new minions')
 
 @sio.event
 async def connect_error(sid, data):
@@ -433,8 +517,28 @@ async def game_loop():
                 direction_magnitude = math.sqrt(player.direction_dx**2 + player.direction_dy**2)
                 
                 if direction_magnitude > 1:  # If the cursor is not on the player
-                    # Calculate displacement based on speed and time elapsed
-                    displacement = BASE_MAX_SPEED * delta_time
+                    # Calculate fleet size speed multiplier
+                    # Small fleets (1-3 minions) = very fast (1.5x-2x speed)
+                    # Medium fleets (4-8 minions) = normal speed (1x)
+                    # Large fleets (9+ minions) = slower (0.5x-0.8x speed)
+                    minion_count = len(owned_minions)
+                    if minion_count <= 3:
+                        # Small fleets are very agile
+                        speed_multiplier = 2.0 - (minion_count - 1) * 0.25  # 2x -> 1.5x
+                    elif minion_count <= 8:
+                        # Medium fleets have normal speed
+                        speed_multiplier = 1.5 - (minion_count - 4) * 0.1  # 1.5x -> 1x
+                    else:
+                        # Large fleets are slower but capped at 0.5x minimum
+                        speed_multiplier = max(0.5, 1.0 - (minion_count - 8) * 0.05)
+                    
+                    # Calculate displacement based on speed, time, and fleet size
+                    displacement = BASE_MAX_SPEED * delta_time * speed_multiplier
+                    
+                    # Debug output (can be removed later)
+                    if minion_count != getattr(player, '_last_logged_count', -1):
+                        print(f'Player {player.name}: {minion_count} minions, speed multiplier: {speed_multiplier:.2f}x')
+                        player._last_logged_count = minion_count
                     
                     # Move each minion towards the target with some spread
                     for i, minion in enumerate(owned_minions):
@@ -529,12 +633,7 @@ async def game_loop():
                                 # Set cooldown
                                 collision_cooldowns[collision_key] = current_time
                                 
-                                winner, loser = await handle_minion_collision(minion1, minion2)
-                                if winner and loser:
-                                    await sio.emit('minion_infection', {
-                                        'winner': winner.to_dict(),
-                                        'loser': loser.to_dict(),
-                                    })
+                                await handle_minion_collision(minion1, minion2)
                     except Exception as e:
                         print(f"Error in minion collision detection: {e}")
                         continue
@@ -566,9 +665,9 @@ app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    # Get host and port from environment variables (for deployment) or use defaults (for local development)
-    host = os.environ.get('HOST', 'localhost')
+    import os
     port = int(os.environ.get('PORT', 5000))
-    
-    print(f"Starting server on {host}:{port}")
-    aiohttp.web.run_app(app, host=host, port=port)
+    print(f"Starting InfiniMunch server on port {port}")
+    print(f"AI module available: {AI_AVAILABLE}")
+    print(f"Server will be accessible at: http://0.0.0.0:{port}")
+    aiohttp.web.run_app(app, host='0.0.0.0', port=port)

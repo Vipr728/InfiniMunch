@@ -219,12 +219,28 @@
         "Chat",
         "bob"
     ],
+    "('abhi', 'bread')": [
+        "bread",
+        "abhi"
+    ],
+    "('bread', 'buff abhi')": [
+        "buff abhi",
+        "bread"
+    ],
+    "('abhi', 'buff abhi')": [
+        "buff abhi",
+        "abhi"
+    ],
+    "('abi', 'sigma')": [
+        "sigma",
+        "abi"
+    ],
     "('ahbi', 'dog')": [
         "dog",
         "ahbi"
     ],
-    "('Sapphire Swift player', 'Swift Phoenix Wolf Emerald sword')": [
-        "Sapphire Swift player",
-        "Swift Phoenix Wolf Emerald sword"
+    "('Bob', 'Test')": [
+        "Test",
+        "Bob"
     ]
 }

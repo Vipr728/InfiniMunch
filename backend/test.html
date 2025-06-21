@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logsDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+        }
+
+        log('Starting connection test...');
+        
+        const socket = io('/', {
+            transports: ['polling'],
+            timeout: 20000,
+            forceNew: true,
+            upgrade: false
+        });
+
+        socket.on('connect', () => {
+            log('Connected successfully!');
+            statusDiv.textContent = 'Connected!';
+            statusDiv.style.color = 'green';
+        });
+
+        socket.on('connect_error', (error) => {
+            log('Connection error: ' + error.message);
+            statusDiv.textContent = 'Connection failed: ' + error.message;
+            statusDiv.style.color = 'red';
+        });
+
+        socket.on('disconnect', (reason) => {
+            log('Disconnected: ' + reason);
+            statusDiv.textContent = 'Disconnected: ' + reason;
+            statusDiv.style.color = 'orange';
+        });
+
+        socket.on('error', (error) => {
+            log('Socket error: ' + error);
+        });
+    </script>
+</body>
+</html> 

@@ -31,17 +31,11 @@ class AICollisionResolver:
             return winner_name, loser_name
         
         prompt = f"""
-        You are an AI judge in a competitive game called "InfiniMunch". Two players have collided and you must determine who wins.
+        Which is stronger, "{player1_name}" or "{player2_name}"?
 
-        I will give you two terms between which I want you to determine the winner in a battle to the death. Make your responses dumb and fun, this is meant for a fun io-style game. Make sure your winners still make some sense though, for example "God" should lose to "atheist" even though by power it would obviously win.
-        Make the winner only the dumb one if there's some argument that could be made for it to win. In "atheist" vs. "God" an atheist should win. Against a black hole, now something like "black hole existence denier george" could win.
-        Make sure to incorporate internet culture and jokes as well into you determined winner. For example, use stereotypes about different people to determine a winner, like "redditor" losing to "shower".
+        Make the result interesting!
 
-
-        Player 1: "{player1_name}"
-        Player 2: "{player2_name}"
-
-        Respond with ONLY the winner's name, nothing else. No explanations, no quotes, just the name.
+        Respond with ONLY the winner, nothing else. No explanations, no quotes, just the winner.
 
         Winner: """
 

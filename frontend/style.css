@@ -89,7 +89,7 @@ body::before {
 
 .game-description {
     max-width: 450px;
-    margin: 0 auto 25px auto;
+    margin: 0 auto 15px auto;
     color: rgba(255, 255, 255, 0.8);
     line-height: 1.4;
     font-size: 0.9rem;
@@ -98,6 +98,25 @@ body::before {
     border-radius: 10px;
     border: 1px solid rgba(100, 181, 246, 0.3);
     backdrop-filter: blur(5px);
+}
+
+.strategy-tip {
+    max-width: 450px;
+    margin: 0 auto 25px auto;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.4;
+    font-size: 0.85rem;
+    padding: 12px;
+    background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 69, 0, 0.15));
+    border-radius: 8px;
+    border: 1px solid rgba(255, 165, 0, 0.4);
+    backdrop-filter: blur(5px);
+    animation: tipGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes tipGlow {
+    0% { box-shadow: 0 0 5px rgba(255, 165, 0, 0.3); }
+    100% { box-shadow: 0 0 15px rgba(255, 165, 0, 0.5); }
 }
 
 @keyframes galaxyGlow {
@@ -280,6 +299,17 @@ body::before {
     color: rgba(255, 255, 255, 0.9);
     font-size: 16px;
     line-height: 1.5;
+}
+
+.modal-tip {
+    margin-bottom: 20px !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    font-size: 14px !important;
+    padding: 12px;
+    background: linear-gradient(135deg, rgba(100, 181, 246, 0.2), rgba(156, 39, 176, 0.15));
+    border-radius: 8px;
+    border: 1px solid rgba(100, 181, 246, 0.4);
+    line-height: 1.4 !important;
 }
 
 #newPlayerName {

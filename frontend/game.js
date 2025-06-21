@@ -87,28 +87,25 @@ class AgarioGame {
     }
     
     shouldShowAds() {
-        // TEMPORARY: Always show ads for debugging
-        return true;
-        
         // Show ads when camera is near world boundaries
-        // const margin = 200; // Distance from edge to start showing ads
-        // return this.cameraX < margin || 
-        //        this.cameraX + this.viewWidth > this.worldWidth - margin ||
-        //        this.cameraY < margin || 
-        //        this.cameraY + this.viewHeight > this.worldHeight - margin;
+        const margin = 400; // Distance from edge to start showing ads
+        return this.cameraX < margin || 
+               this.cameraX + this.viewWidth > this.worldWidth - margin ||
+               this.cameraY < margin || 
+               this.cameraY + this.viewHeight > this.worldHeight - margin;
     }
     
     getAdPositions() {
-        const adSize = 120; // Size of ad images
+        const adSize = 100; // Slightly smaller ad images
         const positions = [];
         
         // Fixed ad positions around the world boundaries (like soccer field ads)
-        const adSpacing = adSize + 40; // Space between ads
+        const adSpacing = adSize + 60; // Space between ads
         
-        // Left edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Left edge ads (fixed positions) - outside the left boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: 20, // Just inside the left boundary
+                x: -adSize - 20, // Outside the left boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -117,10 +114,10 @@ class AgarioGame {
             });
         }
         
-        // Right edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Right edge ads (fixed positions) - outside the right boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: this.worldWidth - adSize - 20, // Just inside the right boundary
+                x: this.worldWidth + 20, // Outside the right boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -129,11 +126,11 @@ class AgarioGame {
             });
         }
         
-        // Top edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Top edge ads (fixed positions) - outside the top boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: 20, // Just inside the top boundary
+                y: -adSize - 20, // Outside the top boundary
                 width: adSize,
                 height: adSize,
                 edge: 'top',
@@ -141,11 +138,11 @@ class AgarioGame {
             });
         }
         
-        // Bottom edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Bottom edge ads (fixed positions) - outside the bottom boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: this.worldHeight - adSize - 20, // Just inside the bottom boundary
+                y: this.worldHeight + 20, // Outside the bottom boundary
                 width: adSize,
                 height: adSize,
                 edge: 'bottom',
@@ -161,13 +158,7 @@ class AgarioGame {
             return;
         }
         
-        // Debug: Log ad system status
-        console.log('Drawing ads - shouldShowAds:', this.shouldShowAds(), 'adImages.length:', this.adImages.length);
-        console.log('Camera position:', this.cameraX, this.cameraY);
-        console.log('World size:', this.worldWidth, this.worldHeight);
-        
         const positions = this.getAdPositions();
-        console.log('Ad positions generated:', positions.length);
         
         positions.forEach((pos, index) => {
             // Only draw ads that are visible on screen
@@ -176,18 +167,9 @@ class AgarioGame {
             const screenWidth = pos.width * (this.baseViewWidth / this.viewWidth);
             const screenHeight = pos.height * (this.baseViewWidth / this.viewWidth);
             
-            // Debug: Log coordinate transformation
-            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
-            
-            // Check if ad is visible on screen
-            if (screenX + screenWidth > 0 && screenX < this.baseViewWidth &&
-                screenY + screenHeight > 0 && screenY < this.baseViewHeight) {
-                
-                console.log(`Drawing ad ${index} at screen position (${screenX}, ${screenY})`);
-                
-                // Draw ad background (soccer field style)
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+            // Check if ad is visible on screen with some margin
+            if (screenX + screenWidth > -50 && screenX < this.baseViewWidth + 50 &&
+                screenY + screenHeight > -50 && screenY < this.baseViewHeight + 50) {
                 
                 // Try to draw ad image, fallback to colored rectangle if image fails
                 const adImage = this.adImages[pos.adIndex];
@@ -208,10 +190,8 @@ class AgarioGame {
                 
                 // Draw border (soccer field style)
                 this.ctx.strokeStyle = '#000000';
-                this.ctx.lineWidth = 3;
+                this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
-            } else {
-                console.log(`Ad ${index} not visible on screen`);
             }
         });
     }
@@ -277,7 +257,7 @@ class AgarioGame {
     
     updateCamera() {
         const myPlayer = this.players.get(this.myPlayerId);
-        if (myPlayer) {
+        if (myPlayer && myPlayer.minion_count > 0) {
             // Calculate zoom based on minion count (much less dramatic zoom out)
             const baseCount = 5; // New initial minion count
             const countRatio = myPlayer.minion_count / baseCount;
@@ -349,24 +329,16 @@ class AgarioGame {
     
     connectToServer() {
         console.log('Attempting to connect to server...');
+        // Detect if we're running locally or on a deployed server
+        const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        const serverUrl = isLocal ? 'http://localhost:5000' : '/';
         
-        // Determine server URL based on environment
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.protocol === 'file:';
-        
-        const serverUrl = isLocalhost ? 'http://localhost:5000' : 'https://infinimunch.onrender.com';
-        
-        console.log(`Connecting to server: ${serverUrl}`);
-        
+        console.log(`Connecting to: ${serverUrl}`);
         this.socket = io(serverUrl, {
-            transports: ['polling'], // Use polling only for OnRender compatibility
+            transports: ['polling', 'websocket'], // Allow both for local development
             timeout: 20000,
             forceNew: true,
-            upgrade: false, // Disable WebSocket upgrade attempts
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
+            upgrade: true // Enable WebSocket upgrade for better performance
         });
         
         this.socket.on('connect', () => {
@@ -414,6 +386,17 @@ class AgarioGame {
             data.all_minions.forEach(minion => {
                 this.minions.set(minion.id, minion);
             });
+            
+            // Check if this is our respawn by seeing if we have minions now
+            const myPlayer = this.players.get(this.myPlayerId);
+            if (myPlayer && myPlayer.minion_count > 0) {
+                console.log('Successfully respawned with', myPlayer.minion_count, 'minions!');
+            }
+            
+            // Show game screen if we successfully joined/respawned
+            if (myPlayer) {
+                this.showGame();
+            }
             
             this.updateUI();
         });
@@ -493,8 +476,8 @@ class AgarioGame {
             this.showInfectionEffect(data.loser.x, data.loser.y);
         });
         
-        this.socket.on('player_died', (data) => {
-            console.log('Player died:', data);
+        this.socket.on('player_eliminated', (data) => {
+            console.log('Player eliminated:', data);
             const player = this.players.get(data.player_id);
             if (player) {
                 // Immediately mark the player as dead so they disappear
@@ -520,10 +503,18 @@ class AgarioGame {
         this.socket.on('join_failed', (data) => {
             alert(data.message);
             document.getElementById('joinButton').disabled = false;
+            this.myPlayerId = null; // Reset player ID
+            this.showMenu(); // Go back to menu to try again
         });
         
         this.socket.on('name_change_failed', (data) => {
             alert(data.message);
+            // Show the modal again so user can try a different name
+            const currentPlayer = this.players.get(this.myPlayerId);
+            if (currentPlayer && currentPlayer.minion_count === 0) {
+                // Clear the name to encourage trying a different one
+                this.showNameChangeModal('');
+            }
         });
     }
     
@@ -537,7 +528,7 @@ class AgarioGame {
         document.getElementById('joinButton').disabled = true;
         this.socket.emit('join_game', { name: playerName });
         this.myPlayerId = this.socket.id;
-        this.showGame();
+        // Don't show game screen immediately - wait for game_state confirmation
     }
     
     showMenu() {
@@ -1003,10 +994,15 @@ class AgarioGame {
     showNameChangeModal(currentName) {
         const nameInput = document.getElementById('newPlayerName');
         nameInput.value = currentName;
-        nameInput.select();
-        nameInput.focus();
         
         document.getElementById('nameChangeModal').classList.remove('hidden');
+        
+        // Use setTimeout to ensure the modal is visible before focusing
+        // This helps with browser focus policies and modal animations
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select(); // This will select all text so user can just type or press Enter
+        }, 10);
     }
     
     hideNameChangeModal() {
@@ -1023,15 +1019,8 @@ class AgarioGame {
         }
         
         if (this.socket && this.socket.connected) {
-            // First change the name if it's different
-            const currentPlayer = this.players.get(this.myPlayerId);
-            if (currentPlayer && currentPlayer.name !== newName) {
-                // Clear current game state before respawning
-            this.players.clear();
-            this.minions.clear();
-            
+            console.log('Requesting respawn with name:', newName);
             this.socket.emit('change_name', { name: newName });
-            }
             
             // Then respawn
             this.socket.emit('respawn_player', {});
@@ -1304,4 +1293,13 @@ document.head.appendChild(style);
 // Start the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     new AgarioGame();
+    
+    // Auto-focus the player name input for immediate typing
+    setTimeout(() => {
+        const playerNameInput = document.getElementById('playerName');
+        if (playerNameInput) {
+            playerNameInput.focus();
+            playerNameInput.select(); // Select any existing text
+        }
+    }, 100); // Small delay to ensure everything is loaded
 }); 

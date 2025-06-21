@@ -9,11 +9,11 @@
 <body>
     <div id="menu" class="screen">
         <h1>InfiniMunch</h1>
-        <h2>Fleet Commander</h2>
-        <p class="game-description">Command a fleet of 5 minions! When your minions collide with enemy minions, AI determines the winner based on name power. Winners infect losers, converting them to your army!</p>
+        <h2>Concept: AI logic game of the future</h2>
+        <p class="game-description">Enter the strongest name you can think of, e.g. butterknife would beat butter</p>
         <div class="input-group">
             <div class="input-with-button">
-                <input type="text" id="playerName" placeholder="Enter your commander name" maxlength="20">
+                <input type="text" id="playerName" placeholder="Enter the strongest name you can think of..." maxlength="20">
                 <button id="joinButton" class="arrow-button">→</button>
             </div>
         </div>
@@ -49,9 +49,10 @@
     <div id="nameChangeModal" class="modal hidden">
         <div class="modal-content">
             <h2>Fleet Eliminated!</h2>
-            <p>Your entire fleet has been consumed! Would you like to change your commander name and respawn with a new fleet?</p>
+            <p>Your entire fleet has been consumed! Choose a more powerful name to respawn with a stronger fleet!</p>
+            <p class="modal-tip"><strong>💡 Tip:</strong> Try names like "Phoenix", "Thunder", "Vortex" - powerful names win more battles!</p>
             <div class="input-group">
-                <input type="text" id="newPlayerName" placeholder="" maxlength="20">
+                <input type="text" id="newPlayerName" placeholder="Enter a powerful name..." maxlength="20">
                 <div class="button-group">
                     <button id="changeNameButton">Respawn Fleet</button>
                 </div>
