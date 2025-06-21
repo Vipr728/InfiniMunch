@@ -22,5 +22,41 @@
     "('abhi (indian)', 'go')": [
         "abhi (indian)",
         "go"
+    ],
+    "('bob', 'go')": [
+        "bob",
+        "go"
+    ],
+    "('abhi (indian)', 'bob')": [
+        "bob",
+        "abhi (indian)"
+    ],
+    "('go', 'go')": [
+        "go",
+        "go"
+    ],
+    "('bob', 'bob the builder')": [
+        "bob",
+        "bob the builder"
+    ],
+    "('abhi (indian)', 'bob the builder')": [
+        "abhi (indian)",
+        "bob the builder"
+    ],
+    "('deodorant', 'pakistan')": [
+        "deodorant",
+        "pakistan"
+    ],
+    "('abhinav (indian)', 'pakistan')": [
+        "pakistan",
+        "abhinav (indian)"
+    ],
+    "('redditor', 'twitter user')": [
+        "twitter user",
+        "redditor"
+    ],
+    "('shwer', 'twitter user')": [
+        "shwer",
+        "twitter user"
     ]
 }

@@ -180,7 +180,7 @@ class AgarioGame {
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
-            document.getElementById('connectionStatus').textContent = 'Connected! Enter your name to play.';
+            document.getElementById('connectionStatus').textContent = 'Connected!';
             document.getElementById('joinButton').disabled = false;
         });
         
@@ -227,6 +227,8 @@ class AgarioGame {
                     p.y = playerData.y;
                     p.size = playerData.size;
                     p.color = playerData.color; // Ensure color updates on respawn
+                    p.is_dead = playerData.is_dead; // Update death state
+                    p.invulnerable_until = playerData.invulnerable_until; // Update invulnerability
                 }
             });
             this.updateUI();
@@ -239,6 +241,11 @@ class AgarioGame {
         
         this.socket.on('player_died', (data) => {
             console.log('Player died:', data);
+            const player = this.players.get(data.player_id);
+            if (player) {
+                // Immediately mark the player as dead so they disappear
+                player.is_dead = true;
+            }
             if (data.player_id === this.myPlayerId) {
                 this.showNameChangeModal(data.current_name);
             }
@@ -251,6 +258,18 @@ class AgarioGame {
                 player.name = data.new_name;
                 if (data.player_id === this.myPlayerId) {
                     document.getElementById('playerName2').textContent = data.new_name;
+                }
+            }
+        });
+        
+        this.socket.on('player_respawned', (data) => {
+            console.log('Player respawned:', data);
+            const player = this.players.get(data.player_id);
+            if (player) {
+                // Update player data with respawn information
+                Object.assign(player, data.player);
+                if (data.player_id === this.myPlayerId) {
+                    document.getElementById('playerName2').textContent = player.name;
                 }
             }
         });
@@ -450,11 +469,45 @@ class AgarioGame {
     drawWorldBounds() {
         this.ctx.strokeStyle = 'rgba(100, 181, 246, 0.5)'; // More visible cosmic blue boundary
         this.ctx.lineWidth = 4;
-        this.ctx.strokeRect(0, 0, this.worldWidth, this.worldHeight);
+        
+        // Draw rounded rectangle for world bounds
+        const radius = 50; // Corner radius
+        const width = this.worldWidth;
+        const height = this.worldHeight;
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(radius, 0);
+        this.ctx.lineTo(width - radius, 0);
+        this.ctx.quadraticCurveTo(width, 0, width, radius);
+        this.ctx.lineTo(width, height - radius);
+        this.ctx.quadraticCurveTo(width, height, width - radius, height);
+        this.ctx.lineTo(radius, height);
+        this.ctx.quadraticCurveTo(0, height, 0, height - radius);
+        this.ctx.lineTo(0, radius);
+        this.ctx.quadraticCurveTo(0, 0, radius, 0);
+        this.ctx.stroke();
     }
     
     drawPlayer(player) {
         const isMe = player.id === this.myPlayerId;
+        
+        // Don't render dead players
+        if (player.is_dead) {
+            return;
+        }
+        
+        // Check if player is invulnerable (flashing effect)
+        const currentTime = Date.now() / 1000;
+        const isInvulnerable = player.invulnerable_until && currentTime < player.invulnerable_until;
+        
+        // Flash effect for invulnerable players
+        if (isInvulnerable) {
+            const flashRate = 0.2; // Flash every 0.2 seconds
+            const flashPhase = Math.sin(currentTime / flashRate * Math.PI * 2);
+            if (flashPhase < 0) {
+                return; // Skip rendering this frame for flashing effect
+            }
+        }
         
         // Draw blob at its direct server position
         this.ctx.fillStyle = player.color;
@@ -466,6 +519,15 @@ class AgarioGame {
         this.ctx.strokeStyle = isMe ? '#ffffff' : '#333333';
         this.ctx.lineWidth = isMe ? 3 : 1;
         this.ctx.stroke();
+        
+        // Draw invulnerability indicator
+        if (isInvulnerable) {
+            this.ctx.strokeStyle = '#ffff00';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]); // Reset line dash
+        }
         
         // Draw name
         this.ctx.fillStyle = '#000000';
@@ -523,7 +585,11 @@ class AgarioGame {
     updateUI() {
         const myPlayer = this.players.get(this.myPlayerId);
         if (myPlayer) {
-            document.getElementById('playerSize').textContent = `Size: ${Math.round(myPlayer.size)}`;
+            if (myPlayer.is_dead) {
+                document.getElementById('playerSize').textContent = 'DEAD - Confirm name to respawn';
+            } else {
+                document.getElementById('playerSize').textContent = `Size: ${Math.round(myPlayer.size)}`;
+            }
         }
         this.updateLeaderboard();
     }
@@ -531,8 +597,9 @@ class AgarioGame {
     updateLeaderboard() {
         const leaderboardList = document.getElementById('leaderboardList');
         
-        // Convert players Map to array and sort by size (descending)
+        // Convert players Map to array, filter out dead players, and sort by size (descending)
         const sortedPlayers = Array.from(this.players.values())
+            .filter(player => !player.is_dead) // Exclude dead players from leaderboard
             .sort((a, b) => b.size - a.size)
             .slice(0, 10); // Show top 10 players
         
@@ -560,7 +627,7 @@ class AgarioGame {
         
         // Show message if no players
         if (sortedPlayers.length === 0) {
-            leaderboardList.innerHTML = '<div style="text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; padding: 10px;">No players yet</div>';
+            leaderboardList.innerHTML = '<div style="text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; padding: 10px;">No active players</div>';
         }
     }
     
@@ -606,7 +673,14 @@ class AgarioGame {
         }
         
         if (this.socket && this.socket.connected) {
-            this.socket.emit('change_name', { name: newName });
+            // First change the name if it's different
+            const currentPlayer = this.players.get(this.myPlayerId);
+            if (currentPlayer && currentPlayer.name !== newName) {
+                this.socket.emit('change_name', { name: newName });
+            }
+            
+            // Then respawn
+            this.socket.emit('respawn_player', {});
         }
         
         this.hideNameChangeModal();

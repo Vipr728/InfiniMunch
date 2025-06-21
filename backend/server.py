@@ -81,17 +81,115 @@ PASTEL_COLORS = [
 ]
 collision_cooldowns = {}  # Track collision cooldowns
 
+def is_within_rounded_bounds(x, y, size):
+    """Check if a player is within the rounded world bounds"""
+    radius = 50  # Corner radius (same as frontend)
+    half_size = size / 2
+    
+    # Check if the player's bounding circle is within the rounded rectangle
+    # For the main rectangular area
+    if (half_size <= x <= WORLD_WIDTH - half_size and 
+        half_size <= y <= WORLD_HEIGHT - half_size):
+        return True
+    
+    # Check corners - if player is in a corner area, check distance from corner center
+    corner_radius = radius + half_size
+    
+    # Top-left corner
+    if x < radius and y < radius:
+        return math.sqrt((x - radius)**2 + (y - radius)**2) <= corner_radius
+    
+    # Top-right corner
+    if x > WORLD_WIDTH - radius and y < radius:
+        return math.sqrt((x - (WORLD_WIDTH - radius))**2 + (y - radius)**2) <= corner_radius
+    
+    # Bottom-left corner
+    if x < radius and y > WORLD_HEIGHT - radius:
+        return math.sqrt((x - radius)**2 + (y - (WORLD_HEIGHT - radius))**2) <= corner_radius
+    
+    # Bottom-right corner
+    if x > WORLD_WIDTH - radius and y > WORLD_HEIGHT - radius:
+        return math.sqrt((x - (WORLD_WIDTH - radius))**2 + (y - (WORLD_HEIGHT - radius))**2) <= corner_radius
+    
+    return False
+
+def clamp_to_rounded_bounds(x, y, size):
+    """Clamp a player position to be within the rounded world bounds"""
+    radius = 50  # Corner radius
+    half_size = size / 2
+    
+    # First, clamp to the main rectangular area
+    x = max(half_size, min(WORLD_WIDTH - half_size, x))
+    y = max(half_size, min(WORLD_HEIGHT - half_size, y))
+    
+    # Check if we're in a corner area and need to adjust
+    corner_radius = radius + half_size
+    
+    # Top-left corner
+    if x < radius and y < radius:
+        distance = math.sqrt((x - radius)**2 + (y - radius)**2)
+        if distance > corner_radius:
+            scale = corner_radius / distance
+            x = radius + (x - radius) * scale
+            y = radius + (y - radius) * scale
+    
+    # Top-right corner
+    elif x > WORLD_WIDTH - radius and y < radius:
+        distance = math.sqrt((x - (WORLD_WIDTH - radius))**2 + (y - radius)**2)
+        if distance > corner_radius:
+            scale = corner_radius / distance
+            x = (WORLD_WIDTH - radius) + (x - (WORLD_WIDTH - radius)) * scale
+            y = radius + (y - radius) * scale
+    
+    # Bottom-left corner
+    elif x < radius and y > WORLD_HEIGHT - radius:
+        distance = math.sqrt((x - radius)**2 + (y - (WORLD_HEIGHT - radius))**2)
+        if distance > corner_radius:
+            scale = corner_radius / distance
+            x = radius + (x - radius) * scale
+            y = (WORLD_HEIGHT - radius) + (y - (WORLD_HEIGHT - radius)) * scale
+    
+    # Bottom-right corner
+    elif x > WORLD_WIDTH - radius and y > WORLD_HEIGHT - radius:
+        distance = math.sqrt((x - (WORLD_WIDTH - radius))**2 + (y - (WORLD_HEIGHT - radius))**2)
+        if distance > corner_radius:
+            scale = corner_radius / distance
+            x = (WORLD_WIDTH - radius) + (x - (WORLD_WIDTH - radius)) * scale
+            y = (WORLD_HEIGHT - radius) + (y - (WORLD_HEIGHT - radius)) * scale
+    
+    return x, y
+
 class Player:
     def __init__(self, player_id, name):
         self.id = player_id
         self.name = name
-        self.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        self.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
+        
+        # Spawn within rounded bounds
+        max_attempts = 50
+        for attempt in range(max_attempts):
+            # Generate position within the main rectangular area
+            spawn_x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
+            spawn_y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
+            
+            # Check if it's within rounded bounds
+            if is_within_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE):
+                self.x = spawn_x
+                self.y = spawn_y
+                break
+        else:
+            # If we can't find a good position, use the clamp function
+            self.x, self.y = clamp_to_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE)
+        
         self.size = INITIAL_SIZE
         # Use pastel colors instead of random colors
         self.color = random.choice(PASTEL_COLORS)
         self.direction_dx = 0
         self.direction_dy = 0
+        
+        # Respawn and invulnerability state
+        self.is_dead = False
+        self.invulnerable_until = 0
+        self.respawn_time = 0
         
     def to_dict(self):
         return {
@@ -101,6 +199,8 @@ class Player:
             'y': self.y,
             'size': self.size,
             'color': self.color,
+            'is_dead': self.is_dead,
+            'invulnerable_until': self.invulnerable_until,
         }
     
     def get_max_speed(self):
@@ -131,6 +231,14 @@ def check_collision(player1, player2):
 
 async def handle_collision(player1, player2):
     """Handle collision between two players - AI determines winner based on name power"""
+    # Skip collision if either player is dead or invulnerable
+    if player1.is_dead or player2.is_dead:
+        return None, None
+    
+    current_time = time.time()
+    if current_time < player1.invulnerable_until or current_time < player2.invulnerable_until:
+        return None, None
+    
     # Use AI to determine winner based on name power, with caching
     winner_name, loser_name = await determine_winner_with_cache(player1.name, player2.name)
     
@@ -140,23 +248,19 @@ async def handle_collision(player1, player2):
     
     print(f"AI determined '{winner.name}' wins over '{loser.name}' based on name power!")
     
-    # Winner grows, loser shrinks or dies
+    # Winner grows, loser dies
     size_transfer = loser.size * 0.3
     winner.size += size_transfer
-    loser.size -= size_transfer
     
-    if loser.size < 10:
-        # Respawn the loser
-        loser.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        loser.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
-        loser.size = INITIAL_SIZE
-        loser.color = random.choice(PASTEL_COLORS)
-        
-        # Send death notification to the loser so they can change their name
-        await sio.emit('player_died', {
-            'player_id': loser.id,
-            'current_name': loser.name
-        }, room=loser.id)
+    # Kill the loser
+    loser.is_dead = True
+    loser.respawn_time = current_time
+    
+    # Send death notification to the loser so they can change their name
+    await sio.emit('player_died', {
+        'player_id': loser.id,
+        'current_name': loser.name
+    }, room=loser.id)
     
     return winner, loser
 
@@ -228,6 +332,48 @@ async def change_name(sid, data):
     print(f'Player {old_name} changed name to {new_name}')
 
 @sio.event
+async def respawn_player(sid, data):
+    """Handle player respawn request"""
+    if sid not in players:
+        return
+        
+    player = players[sid]
+    current_time = time.time()
+    
+    # Respawn the player
+    player.is_dead = False
+    
+    # Spawn within rounded bounds
+    max_attempts = 50
+    for attempt in range(max_attempts):
+        # Generate position within the main rectangular area
+        spawn_x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
+        spawn_y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
+        
+        # Check if it's within rounded bounds
+        if is_within_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE):
+            player.x = spawn_x
+            player.y = spawn_y
+            break
+    else:
+        # If we can't find a good position, use the clamp function
+        player.x, player.y = clamp_to_rounded_bounds(spawn_x, spawn_y, INITIAL_SIZE)
+    
+    player.size = INITIAL_SIZE
+    player.color = random.choice(PASTEL_COLORS)
+    
+    # Give 3 seconds of invulnerability
+    player.invulnerable_until = current_time + 3.0
+    
+    # Notify all clients about the respawn
+    await sio.emit('player_respawned', {
+        'player_id': sid,
+        'player': player.to_dict()
+    })
+    
+    print(f'Player {player.name} respawned')
+
+@sio.event
 async def connect_error(sid, data):
     print(f'Connection error for {sid}: {data}')
 
@@ -262,8 +408,7 @@ async def game_loop():
                     player.y += (player.direction_dy / direction_magnitude) * displacement
                 
                 # Keep within bounds (using size/2 for radius)
-                player.x = max(player.size / 2, min(WORLD_WIDTH - player.size / 2, player.x))
-                player.y = max(player.size / 2, min(WORLD_HEIGHT - player.size / 2, player.y))
+                player.x, player.y = clamp_to_rounded_bounds(player.x, player.y, player.size)
 
             # --- Collision Detection ---
             player_list = list(players.values())
@@ -273,8 +418,9 @@ async def game_loop():
                         player1 = player_list[i]
                         player2 = player_list[j]
                         
-                        # Skip if either player no longer exists
-                        if player1.id not in players or player2.id not in players:
+                        # Skip if either player no longer exists or is dead
+                        if (player1.id not in players or player2.id not in players or 
+                            player1.is_dead or player2.is_dead):
                             continue
                         
                         # Check collision cooldown
@@ -290,10 +436,11 @@ async def game_loop():
                             collision_cooldowns[collision_key] = current_time
                             
                             winner, loser = await handle_collision(player1, player2)
-                            await sio.emit('collision', {
-                                'winner': winner.to_dict(),
-                                'loser': loser.to_dict(),
-                            })
+                            if winner and loser:  # Only emit if there was actually a collision
+                                await sio.emit('collision', {
+                                    'winner': winner.to_dict(),
+                                    'loser': loser.to_dict(),
+                                })
                     except Exception as e:
                         print(f"Error in collision detection: {e}")
                         continue
