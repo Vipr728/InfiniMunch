@@ -233,7 +233,7 @@ class AgarioGame {
     
     updateCamera() {
         const myPlayer = this.players.get(this.myPlayerId);
-        if (myPlayer) {
+        if (myPlayer && myPlayer.minion_count > 0) {
             // Calculate zoom based on minion count (much less dramatic zoom out)
             const baseCount = 5; // New initial minion count
             const countRatio = myPlayer.minion_count / baseCount;
@@ -308,7 +308,7 @@ class AgarioGame {
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
-            document.getElementById('connectionStatus').textContent = 'Connected! Enter your name to play.';
+            document.getElementById('connectionStatus').textContent = 'Connected! Enter a strong name to play.';
             document.getElementById('joinButton').disabled = false;
         });
         
@@ -335,6 +335,17 @@ class AgarioGame {
             data.all_minions.forEach(minion => {
                 this.minions.set(minion.id, minion);
             });
+            
+            // Check if this is our respawn by seeing if we have minions now
+            const myPlayer = this.players.get(this.myPlayerId);
+            if (myPlayer && myPlayer.minion_count > 0) {
+                console.log('Successfully respawned with', myPlayer.minion_count, 'minions!');
+            }
+            
+            // Show game screen if we successfully joined/respawned
+            if (myPlayer) {
+                this.showGame();
+            }
             
             this.updateUI();
         });
@@ -409,10 +420,18 @@ class AgarioGame {
         this.socket.on('join_failed', (data) => {
             alert(data.message);
             document.getElementById('joinButton').disabled = false;
+            this.myPlayerId = null; // Reset player ID
+            this.showMenu(); // Go back to menu to try again
         });
         
         this.socket.on('name_change_failed', (data) => {
             alert(data.message);
+            // Show the modal again so user can try a different name
+            const currentPlayer = this.players.get(this.myPlayerId);
+            if (currentPlayer && currentPlayer.minion_count === 0) {
+                // Clear the name to encourage trying a different one
+                this.showNameChangeModal('');
+            }
         });
     }
     
@@ -426,7 +445,7 @@ class AgarioGame {
         document.getElementById('joinButton').disabled = true;
         this.socket.emit('join_game', { name: playerName });
         this.myPlayerId = this.socket.id;
-        this.showGame();
+        // Don't show game screen immediately - wait for game_state confirmation
     }
     
     showMenu() {
@@ -871,10 +890,15 @@ class AgarioGame {
     showNameChangeModal(currentName) {
         const nameInput = document.getElementById('newPlayerName');
         nameInput.value = currentName;
-        nameInput.select();
-        nameInput.focus();
         
         document.getElementById('nameChangeModal').classList.remove('hidden');
+        
+        // Use setTimeout to ensure the modal is visible before focusing
+        // This helps with browser focus policies and modal animations
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select(); // This will select all text so user can just type or press Enter
+        }, 10);
     }
     
     hideNameChangeModal() {
@@ -891,10 +915,7 @@ class AgarioGame {
         }
         
         if (this.socket && this.socket.connected) {
-            // Clear current game state before respawning
-            this.players.clear();
-            this.minions.clear();
-            
+            console.log('Requesting respawn with name:', newName);
             this.socket.emit('change_name', { name: newName });
         }
         
@@ -925,4 +946,13 @@ document.head.appendChild(style);
 // Start the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     new AgarioGame();
+    
+    // Auto-focus the player name input for immediate typing
+    setTimeout(() => {
+        const playerNameInput = document.getElementById('playerName');
+        if (playerNameInput) {
+            playerNameInput.focus();
+            playerNameInput.select(); // Select any existing text
+        }
+    }, 100); // Small delay to ensure everything is loaded
 }); 

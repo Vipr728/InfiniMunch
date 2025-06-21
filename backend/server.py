@@ -65,8 +65,8 @@ MINION_SIZE = 45
 FLEET_SIZE = 5
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
-BASE_MAX_SPEED = 200.0    # Base speed for minions
-MIN_SPEED = 120.0         # Minimum speed
+BASE_MAX_SPEED = 500.0    # Base speed for minions (increased from 200.0 for much faster gameplay)
+MIN_SPEED = 300.0         # Minimum speed (increased from 120.0)
 
 # Original Matplotlib Pastel1 color palette for beautiful blob colors
 PASTEL_COLORS = [
@@ -193,10 +193,11 @@ async def handle_minion_collision(minion1, minion2):
     
     print(f"AI determined '{winner.original_name}' wins over '{loser.original_name}' - infecting!")
     
-    # Winner infects loser - loser changes owner and color but keeps original name
+    # Winner infects loser - loser changes owner, color, and takes on winner's name
     old_owner_id = loser.owner_id
     loser.owner_id = winner.owner_id
     loser.color = winner.color
+    loser.original_name = winner.original_name  # Infected minion takes on winner's name
     loser.last_infection_time = time.time()  # Set invulnerability period
     
     # Check if any player has lost all their minions
@@ -281,7 +282,7 @@ async def change_name(sid, data):
     player = players[sid]
     new_name = data.get('name', '').strip()
     
-    if not new_name or new_name == player.name:
+    if not new_name:
         return
 
     # Check if the name is already taken by another player
@@ -295,6 +296,7 @@ async def change_name(sid, data):
     
     # Check if player is eliminated (has no minions) - if so, respawn them
     owned_minions = player.get_owned_minions()
+    same_name = new_name == old_name
     if len(owned_minions) == 0:
         print(f'Respawning eliminated player {old_name} as {new_name}')
         
@@ -307,18 +309,24 @@ async def change_name(sid, data):
         player.color = random.choice(PASTEL_COLORS)  # Get new color
         player.create_fleet()
         
-        # Send updated game state to the respawned player
-        await sio.emit('game_state', {
+        # Send updated game state to ALL players to ensure synchronization
+        game_state_data = {
             'players': [p.to_dict() for p in players.values()],
             'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
             'all_minions': [m.to_dict() for m in minions.values()],
-        }, room=sid)
+        }
         
-        # Notify others about respawned player
-        await sio.emit('player_joined', player.to_dict(), skip_sid=sid)
+        # Send to the respawned player first
+        await sio.emit('game_state', game_state_data, room=sid)
+        
+        # Send to all other players as well to keep everyone in sync
+        await sio.emit('update_game_state', {
+            'players': game_state_data['players'],
+            'all_minions': game_state_data['all_minions']
+        }, skip_sid=sid)
         
         print(f'Player {new_name} respawned with {FLEET_SIZE} new minions')
-    else:
+    elif not same_name:
         # Update all minions that were originally owned by this player
         for minion in minions.values():
             if minion.original_name == old_name:
@@ -368,8 +376,28 @@ async def game_loop():
                 direction_magnitude = math.sqrt(player.direction_dx**2 + player.direction_dy**2)
                 
                 if direction_magnitude > 1:  # If the cursor is not on the player
-                    # Calculate displacement based on speed and time elapsed
-                    displacement = BASE_MAX_SPEED * delta_time
+                    # Calculate fleet size speed multiplier
+                    # Small fleets (1-3 minions) = very fast (1.5x-2x speed)
+                    # Medium fleets (4-8 minions) = normal speed (1x)
+                    # Large fleets (9+ minions) = slower (0.5x-0.8x speed)
+                    minion_count = len(owned_minions)
+                    if minion_count <= 3:
+                        # Small fleets are very agile
+                        speed_multiplier = 2.0 - (minion_count - 1) * 0.25  # 2x -> 1.5x
+                    elif minion_count <= 8:
+                        # Medium fleets have normal speed
+                        speed_multiplier = 1.5 - (minion_count - 4) * 0.1  # 1.5x -> 1x
+                    else:
+                        # Large fleets are slower but capped at 0.5x minimum
+                        speed_multiplier = max(0.5, 1.0 - (minion_count - 8) * 0.05)
+                    
+                    # Calculate displacement based on speed, time, and fleet size
+                    displacement = BASE_MAX_SPEED * delta_time * speed_multiplier
+                    
+                    # Debug output (can be removed later)
+                    if minion_count != getattr(player, '_last_logged_count', -1):
+                        print(f'Player {player.name}: {minion_count} minions, speed multiplier: {speed_multiplier:.2f}x')
+                        player._last_logged_count = minion_count
                     
                     # Move each minion towards the target with some spread
                     for i, minion in enumerate(owned_minions):
