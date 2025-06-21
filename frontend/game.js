@@ -309,9 +309,10 @@ class AgarioGame {
     connectToServer() {
         console.log('Attempting to connect to server...');
         this.socket = io('https://infinimunch.onrender.com', {
-            transports: ['websocket', 'polling'],
+            transports: ['polling'], // Use polling only for OnRender compatibility
             timeout: 20000,
-            forceNew: true
+            forceNew: true,
+            upgrade: false // Disable WebSocket upgrade attempts
         });
         
         this.socket.on('connect', () => {

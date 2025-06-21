@@ -27,10 +27,29 @@ sio = socketio.AsyncServer(
     cors_credentials=False,
     logger=True,
     engineio_logger=True,
-    async_mode='aiohttp'
+    async_mode='aiohttp',
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=1e6
 )
 app = aiohttp.web.Application()
 sio.attach(app)
+
+# Add CORS middleware
+async def cors_middleware(app, handler):
+    async def middleware(request):
+        if request.method == 'OPTIONS':
+            response = aiohttp.web.Response()
+        else:
+            response = await handler(request)
+        
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
+    return middleware
+
+app.middlewares.append(cors_middleware)
 
 # Add static file serving
 async def health_check(request):
@@ -84,6 +103,7 @@ async def static_handler(request):
 # Add routes
 app.router.add_get('/health', health_check)
 app.router.add_get('/test', test_endpoint)
+app.router.add_get('/test.html', lambda r: aiohttp.web.FileResponse('test.html'))
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
 
