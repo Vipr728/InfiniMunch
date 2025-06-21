@@ -2,5 +2,25 @@
     "('abhi', 'joseph')": [
         "joseph",
         "abhi"
+    ],
+    "('indian', 'odor')": [
+        "odor",
+        "indian"
+    ],
+    "('deodorant', 'odor')": [
+        "deodorant",
+        "odor"
+    ],
+    "('abhinav (indian)', 'deodorant')": [
+        "deodorant",
+        "abhinav (indian)"
+    ],
+    "('abhi (indian)', 'deodorant')": [
+        "abhi (indian)",
+        "deodorant"
+    ],
+    "('abhi (indian)', 'go')": [
+        "abhi (indian)",
+        "go"
     ]
 }

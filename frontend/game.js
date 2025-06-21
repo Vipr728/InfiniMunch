@@ -132,7 +132,25 @@ class AgarioGame {
         
         document.getElementById('playerName').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent form submission if this were in a form
                 this.joinGame();
+            }
+        });
+        
+        // Name change modal events
+        document.getElementById('changeNameButton').addEventListener('click', () => {
+            this.changePlayerName();
+        });
+        
+        document.getElementById('newPlayerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.changePlayerName();
+            }
+        });
+        
+        document.getElementById('newPlayerName').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideNameChangeModal();
             }
         });
         
@@ -217,6 +235,24 @@ class AgarioGame {
         this.socket.on('collision', (data) => {
             console.log('Collision!', data);
             this.showCollisionEffect(data.winner.x, data.winner.y);
+        });
+        
+        this.socket.on('player_died', (data) => {
+            console.log('Player died:', data);
+            if (data.player_id === this.myPlayerId) {
+                this.showNameChangeModal(data.current_name);
+            }
+        });
+        
+        this.socket.on('player_name_changed', (data) => {
+            console.log('Player name changed:', data);
+            const player = this.players.get(data.player_id);
+            if (player) {
+                player.name = data.new_name;
+                if (data.player_id === this.myPlayerId) {
+                    document.getElementById('playerName2').textContent = data.new_name;
+                }
+            }
         });
         
         this.socket.on('connect_error', () => {
@@ -489,6 +525,43 @@ class AgarioGame {
         if (myPlayer) {
             document.getElementById('playerSize').textContent = `Size: ${Math.round(myPlayer.size)}`;
         }
+        this.updateLeaderboard();
+    }
+    
+    updateLeaderboard() {
+        const leaderboardList = document.getElementById('leaderboardList');
+        
+        // Convert players Map to array and sort by size (descending)
+        const sortedPlayers = Array.from(this.players.values())
+            .sort((a, b) => b.size - a.size)
+            .slice(0, 10); // Show top 10 players
+        
+        // Clear current leaderboard
+        leaderboardList.innerHTML = '';
+        
+        // Add entries
+        sortedPlayers.forEach((player, index) => {
+            const entry = document.createElement('div');
+            entry.className = 'leaderboard-entry';
+            
+            // Highlight current player
+            if (player.id === this.myPlayerId) {
+                entry.classList.add('is-me');
+            }
+            
+            entry.innerHTML = `
+                <span class="leaderboard-rank">#${index + 1}</span>
+                <span class="leaderboard-name">${player.name}</span>
+                <span class="leaderboard-size">${Math.round(player.size)}</span>
+            `;
+            
+            leaderboardList.appendChild(entry);
+        });
+        
+        // Show message if no players
+        if (sortedPlayers.length === 0) {
+            leaderboardList.innerHTML = '<div style="text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; padding: 10px;">No players yet</div>';
+        }
     }
     
     showCollisionEffect(x, y) {
@@ -508,6 +581,35 @@ class AgarioGame {
         setTimeout(() => {
             effect.remove();
         }, 500);
+    }
+    
+    showNameChangeModal(currentName) {
+        const nameInput = document.getElementById('newPlayerName');
+        nameInput.value = currentName;
+        nameInput.select();
+        nameInput.focus();
+        
+        document.getElementById('nameChangeModal').classList.remove('hidden');
+    }
+    
+    hideNameChangeModal() {
+        document.getElementById('nameChangeModal').classList.add('hidden');
+        document.getElementById('newPlayerName').value = '';
+    }
+    
+    changePlayerName() {
+        const newName = document.getElementById('newPlayerName').value.trim();
+        
+        if (!newName) {
+            alert('Please enter a name');
+            return;
+        }
+        
+        if (this.socket && this.socket.connected) {
+            this.socket.emit('change_name', { name: newName });
+        }
+        
+        this.hideNameChangeModal();
     }
 }
 

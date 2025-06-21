@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiplayer Agario</title>
+    <title>InfiniMunch</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="menu" class="screen">
-        <h1>Multiplayer Agario</h1>
+        <h1>InfiniMunch</h1>
         <div class="input-group">
-            <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
-            <button id="joinButton">Join Game</button>
+            <div class="input-with-button">
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+                <button id="joinButton" class="arrow-button">→</button>
+            </div>
         </div>
         <div id="connectionStatus">Connecting to server...</div>
     </div>
@@ -22,11 +24,30 @@
                 <span id="playerSize">Size: 20</span>
                 <span id="playerName2"></span>
             </div>
-            <div id="instructions">
-                Move your mouse to control your blob. When two blobs collide, one randomly wins!
+            
+            <div id="leaderboard">
+                <h3>Leaderboard</h3>
+                <div id="leaderboardList">
+                    <!-- Leaderboard entries will be populated by JavaScript -->
+                </div>
             </div>
+            
         </div>
         <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- Name Change Modal -->
+    <div id="nameChangeModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>You Died!</h2>
+            <p>Would you like to change your name before respawning?</p>
+            <div class="input-group">
+                <input type="text" id="newPlayerName" placeholder="" maxlength="20">
+                <div class="button-group">
+                    <button id="changeNameButton">Go</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>

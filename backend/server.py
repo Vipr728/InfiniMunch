@@ -19,7 +19,6 @@ app = aiohttp.web.Application()
 sio.attach(app)
 
 # Create an instance of WordWinnerResolver
-word_resolver = WordWinnerResolver()
 
 # Add static file serving
 async def index_handler(request):
@@ -152,6 +151,12 @@ async def handle_collision(player1, player2):
         loser.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
         loser.size = INITIAL_SIZE
         loser.color = random.choice(PASTEL_COLORS)
+        
+        # Send death notification to the loser so they can change their name
+        await sio.emit('player_died', {
+            'player_id': loser.id,
+            'current_name': loser.name
+        }, room=loser.id)
     
     return winner, loser
 
@@ -197,6 +202,30 @@ async def move_player(sid, data):
     # Client now sends a direction vector {dx, dy}
     player.direction_dx = data.get('dx', 0)
     player.direction_dy = data.get('dy', 0)
+
+@sio.event
+async def change_name(sid, data):
+    """Handle player name change request"""
+    if sid not in players:
+        return
+        
+    player = players[sid]
+    new_name = data.get('name', '').strip()
+    
+    if not new_name:
+        return
+    
+    old_name = player.name
+    player.name = new_name
+    
+    # Notify all clients about the name change
+    await sio.emit('player_name_changed', {
+        'player_id': sid,
+        'old_name': old_name,
+        'new_name': new_name
+    })
+    
+    print(f'Player {old_name} changed name to {new_name}')
 
 @sio.event
 async def connect_error(sid, data):
