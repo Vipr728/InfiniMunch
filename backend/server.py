@@ -123,13 +123,9 @@ async def static_handler(request):
     except Exception as e:
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
-# Add routes with CORS
-app.router.add_get('/health', health_check)
-app.router.add_get('/test', test_endpoint)
+# Add routes
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
-
-# CORS is handled by the middleware above
 
 # Game state
 players = {}

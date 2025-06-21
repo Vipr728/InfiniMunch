@@ -74,15 +74,12 @@ class AgarioGame {
     }
     
     shouldShowAds() {
-        // TEMPORARY: Always show ads for debugging
-        return true;
-        
         // Show ads when camera is near world boundaries
-        // const margin = 200; // Distance from edge to start showing ads
-        // return this.cameraX < margin || 
-        //        this.cameraX + this.viewWidth > this.worldWidth - margin ||
-        //        this.cameraY < margin || 
-        //        this.cameraY + this.viewHeight > this.worldHeight - margin;
+        const margin = 400; // Distance from edge to start showing ads
+        return this.cameraX < margin || 
+               this.cameraX + this.viewWidth > this.worldWidth - margin ||
+               this.cameraY < margin || 
+               this.cameraY + this.viewHeight > this.worldHeight - margin;
     }
     
     getAdPositions() {
@@ -95,7 +92,7 @@ class AgarioGame {
         // Left edge ads (fixed positions) - outside the left boundary
         for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: 20, // Just inside the left boundary
+                x: -adSize - 20, // Outside the left boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -107,7 +104,7 @@ class AgarioGame {
         // Right edge ads (fixed positions) - outside the right boundary
         for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: this.worldWidth - adSize - 20, // Just inside the right boundary
+                x: this.worldWidth + 20, // Outside the right boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -120,7 +117,7 @@ class AgarioGame {
         for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: 20, // Just inside the top boundary
+                y: -adSize - 20, // Outside the top boundary
                 width: adSize,
                 height: adSize,
                 edge: 'top',
@@ -132,7 +129,7 @@ class AgarioGame {
         for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: this.worldHeight - adSize - 20, // Just inside the bottom boundary
+                y: this.worldHeight + 20, // Outside the bottom boundary
                 width: adSize,
                 height: adSize,
                 edge: 'bottom',
@@ -148,13 +145,7 @@ class AgarioGame {
             return;
         }
         
-        // Debug: Log ad system status
-        console.log('Drawing ads - shouldShowAds:', this.shouldShowAds(), 'adImages.length:', this.adImages.length);
-        console.log('Camera position:', this.cameraX, this.cameraY);
-        console.log('World size:', this.worldWidth, this.worldHeight);
-        
         const positions = this.getAdPositions();
-        console.log('Ad positions generated:', positions.length);
         
         positions.forEach((pos, index) => {
             // Only draw ads that are visible on screen
@@ -163,21 +154,9 @@ class AgarioGame {
             const screenWidth = pos.width * (this.baseViewWidth / this.viewWidth);
             const screenHeight = pos.height * (this.baseViewWidth / this.viewWidth);
             
-            // Debug: Log coordinate transformation
-            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
-            
-            // Debug: Log coordinate transformation
-            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
-            
             // Check if ad is visible on screen with some margin
             if (screenX + screenWidth > -50 && screenX < this.baseViewWidth + 50 &&
                 screenY + screenHeight > -50 && screenY < this.baseViewHeight + 50) {
-                
-                console.log(`Drawing ad ${index} at screen position (${screenX}, ${screenY})`);
-                
-                // Draw ad background (soccer field style)
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
                 
                 // Try to draw ad image, fallback to colored rectangle if image fails
                 const adImage = this.adImages[pos.adIndex];
@@ -200,8 +179,6 @@ class AgarioGame {
                 this.ctx.strokeStyle = '#000000';
                 this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
-            } else {
-                console.log(`Ad ${index} not visible on screen`);
             }
         });
     }
