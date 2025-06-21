@@ -5,11 +5,51 @@ import asyncio
 import random
 import math
 import time
+import os
+from ai import ai_resolver
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(cors_allowed_origins="*")
 app = aiohttp.web.Application()
 sio.attach(app)
+
+# Add static file serving
+async def index_handler(request):
+    """Serve the main HTML file"""
+    try:
+        with open('../frontend/index.html', 'r', encoding='utf-8') as f:
+            content = f.read()
+        return aiohttp.web.Response(text=content, content_type='text/html')
+    except FileNotFoundError:
+        return aiohttp.web.Response(text='Frontend not found', status=404)
+
+async def static_handler(request):
+    """Serve static files (CSS, JS)"""
+    try:
+        file_path = request.match_info['path']
+        full_path = f'../frontend/{file_path}'
+        
+        if not os.path.exists(full_path):
+            return aiohttp.web.Response(text='File not found', status=404)
+        
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Determine content type
+        if file_path.endswith('.css'):
+            content_type = 'text/css'
+        elif file_path.endswith('.js'):
+            content_type = 'application/javascript'
+        else:
+            content_type = 'text/plain'
+        
+        return aiohttp.web.Response(text=content, content_type=content_type)
+    except Exception as e:
+        return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
+
+# Add routes
+app.router.add_get('/', index_handler)
+app.router.add_get('/{path:.*}', static_handler)
 
 # Game state
 players = {}
@@ -60,10 +100,16 @@ def check_collision(player1, player2):
     distance = math.sqrt(dx**2 + dy**2)
     return distance < (player1.size + player2.size) / 2
 
-def handle_collision(player1, player2):
-    """Handle collision between two players - random winner"""
-    winner = random.choice([player1, player2])
+async def handle_collision(player1, player2):
+    """Handle collision between two players - AI determines winner based on name power"""
+    # Use AI to determine winner based on name power
+    winner_name, loser_name = await ai_resolver.determine_winner(player1.name, player2.name)
+    
+    # Find the actual player objects
+    winner = player1 if winner_name == player1.name else player2
     loser = player2 if winner == player1 else player1
+    
+    print(f"AI determined '{winner.name}' wins over '{loser.name}' based on name power!")
     
     # Winner grows, loser shrinks or dies
     size_transfer = loser.size * 0.3
@@ -134,7 +180,7 @@ async def game_loop():
                     player2 = player_list[j]
                     
                     if check_collision(player1, player2):
-                        winner, loser = handle_collision(player1, player2)
+                        winner, loser = await handle_collision(player1, player2)
                         await sio.emit('collision', {
                             'winner': winner.to_dict(),
                             'loser': loser.to_dict(),
@@ -153,4 +199,4 @@ if __name__ == '__main__':
     # Start the game loop
     loop.create_task(game_loop())
     
-    aiohttp.web.run_app(app, host='localhost', port=5000, loop=loop) 
+    aiohttp.web.run_app(app, host='localhost', port=8080, loop=loop) 
