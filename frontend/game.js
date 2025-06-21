@@ -6,6 +6,7 @@ class AgarioGame {
         this.minimapCanvas = null;
         this.minimapCtx = null;
         this.players = new Map();
+        this.minions = new Map();  // All minions in the game
         this.myPlayerId = null;
         this.mouseX = 0;
         this.mouseY = 0;
@@ -57,7 +58,7 @@ class AgarioGame {
             background: rgba(0,0,0,0.7);
             border-radius: 5px;
             z-index: 100;
-            pointer-events: none; /* Make minimap transparent to mouse events */
+            pointer-events: none;
         `;
         
         // Create minimap canvas
@@ -105,19 +106,19 @@ class AgarioGame {
     updateCamera() {
         const myPlayer = this.players.get(this.myPlayerId);
         if (myPlayer) {
-            // Calculate zoom based on player size (bigger player = see more of world)
-            const baseSize = 20; // Initial player size
-            const sizeRatio = myPlayer.size / baseSize;
-            // Bigger players see MORE (higher zoom factor = bigger view area)
-            this.zoom = Math.max(1, Math.min(3, 1 + (sizeRatio - 1) * 0.5)); // Zoom range: 1x to 3x
+            // Calculate zoom based on minion count (more minions = see more of world)
+            const baseCount = 20; // Initial minion count
+            const countRatio = myPlayer.minion_count / baseCount;
+            // More minions = bigger view area
+            this.zoom = Math.max(1, Math.min(2.5, 1 + (countRatio - 1) * 0.3)); // Zoom range: 1x to 2.5x
             
             // Update view dimensions - bigger zoom = bigger view area
             this.viewWidth = this.baseViewWidth * this.zoom;
             this.viewHeight = this.baseViewHeight * this.zoom;
             
-            // Center camera on the direct server position
-            this.cameraX = myPlayer.x - this.viewWidth / 2;
-            this.cameraY = myPlayer.y - this.viewHeight / 2;
+            // Center camera on the fleet center
+            this.cameraX = myPlayer.fleet_center_x - this.viewWidth / 2;
+            this.cameraY = myPlayer.fleet_center_y - this.viewHeight / 2;
         }
     }
     
@@ -132,7 +133,7 @@ class AgarioGame {
         
         document.getElementById('playerName').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Prevent form submission if this were in a form
+                e.preventDefault();
                 this.joinGame();
             }
         });
@@ -160,7 +161,7 @@ class AgarioGame {
             const canvasX = e.clientX - rect.left;
             const canvasY = e.clientY - rect.top;
 
-            // Calculate direction vector from player (screen center) to mouse
+            // Calculate direction vector from fleet center (screen center) to mouse
             const dx = canvasX - (this.baseViewWidth / 2);
             const dy = canvasY - (this.baseViewHeight / 2);
 
@@ -176,7 +177,6 @@ class AgarioGame {
     
     connectToServer() {
         this.socket = io('http://localhost:5000');
-        // this.socket = io('https://qk5cj5-ip-167-220-57-55.tunnelmole.net');
         
         this.socket.on('connect', () => {
             console.log('Connected to server');
@@ -190,69 +190,77 @@ class AgarioGame {
             this.showMenu();
         });
         
-        this.socket.on('join_failed', (data) => {
-            alert(data.message);
-            // Re-enable the join button and input so the user can try again
-            document.getElementById('joinButton').disabled = false;
-            document.getElementById('playerName').disabled = false;
-        });
-        
         this.socket.on('game_state', (data) => {
-            console.log('Received game state (join successful):', data);
+            console.log('Received game state:', data);
             this.worldWidth = data.world.width;
             this.worldHeight = data.world.height;
             
             this.players.clear();
+            this.minions.clear();
+            
+            // Update players
             data.players.forEach(player => {
                 this.players.set(player.id, player);
             });
             
-            // Ensure our player's name display is updated with the final name from the server
-            const myPlayer = this.players.get(this.myPlayerId);
-            if (myPlayer) {
-                document.getElementById('playerName2').textContent = myPlayer.name;
-            }
-            
-            // Move to the game screen only on successful join
-            this.showGame();
-        });
-        
-        this.socket.on('player_joined', (player) => {
-            this.players.set(player.id, player);
-            console.log(`${player.name} joined the game`);
-        });
-        
-        this.socket.on('player_left', (data) => {
-            const player = this.players.get(data.player_id);
-            if (player) {
-                console.log(`${player.name} left the game`);
-                this.players.delete(data.player_id);
-            }
-        });
-        
-        this.socket.on('update_players', (playersData) => {
-            playersData.forEach(playerData => {
-                const p = this.players.get(playerData.id);
-                if (p) {
-                    // Update server data directly. No more render properties.
-                    p.x = playerData.x;
-                    p.y = playerData.y;
-                    p.size = playerData.size;
-                    p.color = playerData.color; // Ensure color updates on respawn
-                }
+            // Update minions
+            data.all_minions.forEach(minion => {
+                this.minions.set(minion.id, minion);
             });
+            
             this.updateUI();
         });
         
-        this.socket.on('collision', (data) => {
-            console.log('Collision!', data);
-            this.showCollisionEffect(data.winner.x, data.winner.y);
+        this.socket.on('player_joined', (player) => {
+            console.log('Player joined:', player);
+            this.players.set(player.id, player);
+            this.updateUI();
         });
         
-        this.socket.on('player_died', (data) => {
-            console.log('Player died:', data);
+        this.socket.on('player_left', (data) => {
+            console.log('Player left:', data);
+            this.players.delete(data.player_id);
+            
+            // Remove minions owned by this player
+            for (let [minionId, minion] of this.minions) {
+                if (minion.owner_id === data.player_id) {
+                    this.minions.delete(minionId);
+                }
+            }
+            
+            this.updateUI();
+        });
+        
+        this.socket.on('update_game_state', (data) => {
+            // Update all players
+            data.players.forEach(player => {
+                this.players.set(player.id, player);
+            });
+            
+            // Update all minions
+            this.minions.clear();
+            data.all_minions.forEach(minion => {
+                this.minions.set(minion.id, minion);
+            });
+            
+            this.updateUI();
+        });
+        
+        this.socket.on('minion_infection', (data) => {
+            console.log('Minion infection:', data);
+            // Update the affected minions
+            this.minions.set(data.winner.id, data.winner);
+            this.minions.set(data.loser.id, data.loser);
+            
+            // Show infection effect
+            this.showInfectionEffect(data.loser.x, data.loser.y);
+        });
+        
+        this.socket.on('player_eliminated', (data) => {
+            console.log('Player eliminated:', data);
             if (data.player_id === this.myPlayerId) {
-                this.showNameChangeModal(data.current_name);
+                // Current player was eliminated
+                this.showNameChangeModal(this.players.get(this.myPlayerId)?.name || '');
             }
         });
         
@@ -261,48 +269,37 @@ class AgarioGame {
             const player = this.players.get(data.player_id);
             if (player) {
                 player.name = data.new_name;
-                if (data.player_id === this.myPlayerId) {
-                    document.getElementById('playerName2').textContent = data.new_name;
-                }
+                this.updateUI();
             }
+        });
+        
+        this.socket.on('join_failed', (data) => {
+            alert(data.message);
+            document.getElementById('joinButton').disabled = false;
         });
         
         this.socket.on('name_change_failed', (data) => {
             alert(data.message);
         });
-        
-        this.socket.on('connect_error', () => {
-            document.getElementById('connectionStatus').textContent = 'Failed to connect to server';
-        });
     }
     
     joinGame() {
-        const nameInput = document.getElementById('playerName');
-        const name = nameInput.value.trim();
-        
-        if (!name) {
+        const playerName = document.getElementById('playerName').value.trim();
+        if (!playerName) {
             alert('Please enter your name');
             return;
         }
         
-        if (!this.socket || !this.socket.connected) {
-            alert('Not connected to server');
-            return;
-        }
-        
-        console.log('Socket ID:', this.socket.id);
-        this.myPlayerId = this.socket.id;
-        
-        // Disable button to prevent spam while waiting for server response
         document.getElementById('joinButton').disabled = true;
-        document.getElementById('playerName').disabled = true;
-        
-        this.socket.emit('join_game', { name });
+        this.socket.emit('join_game', { name: playerName });
+        this.myPlayerId = this.socket.id;
+        this.showGame();
     }
     
     showMenu() {
         document.getElementById('menu').classList.remove('hidden');
         document.getElementById('game').classList.add('hidden');
+        document.getElementById('joinButton').disabled = false;
     }
     
     showGame() {
@@ -365,12 +362,10 @@ class AgarioGame {
         // Apply the camera translation
         this.ctx.translate(-this.cameraX, -this.cameraY);
 
-        // Now draw everything. The coordinate system is correctly set up.
+        // Now draw everything
         this.drawGrid();
         this.drawWorldBounds();
-        this.players.forEach(player => {
-            this.drawPlayer(player);
-        });
+        this.drawMinions();
 
         // Restore to the original state before any transformations
         this.ctx.restore();
@@ -382,13 +377,13 @@ class AgarioGame {
         
         // Parallax layers - each layer has its own virtual camera that moves slower
         const layers = [
-            { count: 200, parallax: 0.1, size: 1, opacity: 0.3 },  // Far background - moves 10% as fast as real camera
-            { count: 300, parallax: 0.2, size: 1, opacity: 0.6 },  // Mid background - moves 20% as fast
-            { count: 100, parallax: 0.4, size: 2, opacity: 0.9 }   // Near background - moves 40% as fast
+            { count: 200, parallax: 0.1, size: 1, opacity: 0.3 },
+            { count: 300, parallax: 0.2, size: 1, opacity: 0.6 },
+            { count: 100, parallax: 0.4, size: 2, opacity: 0.9 }
         ];
         
         layers.forEach((layer, layerIndex) => {
-            // Calculate this layer's virtual camera position (moves slower than real camera)
+            // Calculate this layer's virtual camera position
             const starCameraX = this.cameraX * layer.parallax;
             const starCameraY = this.cameraY * layer.parallax;
             
@@ -433,10 +428,10 @@ class AgarioGame {
     }
     
     drawGrid() {
-        this.ctx.strokeStyle = 'rgba(100, 181, 246, 0.15)'; // Subtle blue grid lines
+        this.ctx.strokeStyle = 'rgba(100, 181, 246, 0.15)';
         this.ctx.lineWidth = 1;
         
-        const gridSize = 100; // Increased from 50 to make grid more sparse
+        const gridSize = 100;
         
         // Calculate visible grid range, but clamp to world boundaries
         const startX = Math.max(0, Math.floor(this.cameraX / gridSize) * gridSize);
@@ -444,7 +439,7 @@ class AgarioGame {
         const startY = Math.max(0, Math.floor(this.cameraY / gridSize) * gridSize);
         const endY = Math.min(this.worldHeight, Math.ceil((this.cameraY + this.viewHeight) / gridSize) * gridSize);
         
-        // Vertical lines - clamp to world boundaries
+        // Vertical lines
         for (let x = startX; x <= endX; x += gridSize) {
             if (x >= 0 && x <= this.worldWidth) {
                 this.ctx.beginPath();
@@ -454,7 +449,7 @@ class AgarioGame {
             }
         }
         
-        // Horizontal lines - clamp to world boundaries
+        // Horizontal lines
         for (let y = startY; y <= endY; y += gridSize) {
             if (y >= 0 && y <= this.worldHeight) {
                 this.ctx.beginPath();
@@ -466,37 +461,37 @@ class AgarioGame {
     }
     
     drawWorldBounds() {
-        this.ctx.strokeStyle = 'rgba(100, 181, 246, 0.5)'; // More visible cosmic blue boundary
+        this.ctx.strokeStyle = 'rgba(100, 181, 246, 0.5)';
         this.ctx.lineWidth = 4;
         this.ctx.strokeRect(0, 0, this.worldWidth, this.worldHeight);
     }
     
-    drawPlayer(player) {
-        const isMe = player.id === this.myPlayerId;
+    drawMinions() {
+        // Draw all minions
+        this.minions.forEach(minion => {
+            this.drawMinion(minion);
+        });
+    }
+    
+    drawMinion(minion) {
+        const isMyMinion = this.players.get(this.myPlayerId)?.id === minion.owner_id;
         
-        // Draw blob at its direct server position
-        this.ctx.fillStyle = player.color;
+        // Draw minion blob
+        this.ctx.fillStyle = minion.color;
         this.ctx.beginPath();
-        this.ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
+        this.ctx.arc(minion.x, minion.y, minion.size / 2, 0, Math.PI * 2);
         this.ctx.fill();
         
         // Draw outline
-        this.ctx.strokeStyle = isMe ? '#ffffff' : '#333333';
-        this.ctx.lineWidth = isMe ? 3 : 1;
+        this.ctx.strokeStyle = isMyMinion ? '#ffffff' : '#333333';
+        this.ctx.lineWidth = isMyMinion ? 2 : 1;
         this.ctx.stroke();
         
-        // Draw name
+        // Draw original name (smaller font for minions)
         this.ctx.fillStyle = '#000000';
-        this.ctx.font = '12px Arial';
+        this.ctx.font = '10px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(player.name, player.x, player.y + 4);
-        
-        // Draw size for current player
-        if (isMe) {
-            this.ctx.fillStyle = '#666666';
-            this.ctx.font = '10px Arial';
-            this.ctx.fillText(`${Math.round(player.size)}`, player.x, player.y - player.size/2 - 5);
-        }
+        this.ctx.fillText(minion.original_name, minion.x, minion.y + 3);
     }
     
     renderMinimap() {
@@ -515,13 +510,14 @@ class AgarioGame {
         const scaleX = 150 / this.worldWidth;
         const scaleY = 112 / this.worldHeight;
         
-        // Draw players on minimap using their true server position
-        this.players.forEach(player => {
-            const x = player.x * scaleX;
-            const y = player.y * scaleY;
-            const size = Math.max(2, player.size * scaleX * 0.5);
+        // Draw minions on minimap
+        this.minions.forEach(minion => {
+            const x = minion.x * scaleX;
+            const y = minion.y * scaleY;
+            const size = Math.max(1, minion.size * scaleX * 0.3);
             
-            this.minimapCtx.fillStyle = player.id === this.myPlayerId ? '#ffffff' : player.color;
+            const isMyMinion = this.players.get(this.myPlayerId)?.id === minion.owner_id;
+            this.minimapCtx.fillStyle = isMyMinion ? '#ffffff' : minion.color;
             this.minimapCtx.beginPath();
             this.minimapCtx.arc(x, y, size, 0, Math.PI * 2);
             this.minimapCtx.fill();
@@ -541,7 +537,8 @@ class AgarioGame {
     updateUI() {
         const myPlayer = this.players.get(this.myPlayerId);
         if (myPlayer) {
-            document.getElementById('playerSize').textContent = `Size: ${Math.round(myPlayer.size)}`;
+            document.getElementById('playerSize').textContent = `Minions: ${myPlayer.minion_count}`;
+            document.getElementById('playerName2').textContent = myPlayer.name;
         }
         this.updateLeaderboard();
     }
@@ -549,10 +546,10 @@ class AgarioGame {
     updateLeaderboard() {
         const leaderboardList = document.getElementById('leaderboardList');
         
-        // Convert players Map to array and sort by size (descending)
+        // Convert players Map to array and sort by minion count (descending)
         const sortedPlayers = Array.from(this.players.values())
-            .sort((a, b) => b.size - a.size)
-            .slice(0, 10); // Show top 10 players
+            .sort((a, b) => b.minion_count - a.minion_count)
+            .slice(0, 10);
         
         // Clear current leaderboard
         leaderboardList.innerHTML = '';
@@ -570,7 +567,7 @@ class AgarioGame {
             entry.innerHTML = `
                 <span class="leaderboard-rank">#${index + 1}</span>
                 <span class="leaderboard-name">${player.name}</span>
-                <span class="leaderboard-size">${Math.round(player.size)}</span>
+                <span class="leaderboard-size">${player.minion_count}</span>
             `;
             
             leaderboardList.appendChild(entry);
@@ -582,11 +579,19 @@ class AgarioGame {
         }
     }
     
-    showCollisionEffect(x, y) {
+    showInfectionEffect(x, y) {
         const effect = document.createElement('div');
-        effect.className = 'collision-effect';
+        effect.className = 'infection-effect';
+        effect.innerHTML = '💀';
+        effect.style.cssText = `
+            position: absolute;
+            font-size: 20px;
+            pointer-events: none;
+            z-index: 1000;
+            animation: infectionPop 1s ease-out forwards;
+        `;
         
-        // Convert world coordinates to screen coordinates accounting for zoom
+        // Convert world coordinates to screen coordinates
         const scale = this.baseViewWidth / this.viewWidth;
         const screenX = (x - this.cameraX) * scale;
         const screenY = (y - this.cameraY) * scale;
@@ -598,7 +603,7 @@ class AgarioGame {
         
         setTimeout(() => {
             effect.remove();
-        }, 500);
+        }, 1000);
     }
     
     showNameChangeModal(currentName) {
@@ -630,6 +635,26 @@ class AgarioGame {
         this.hideNameChangeModal();
     }
 }
+
+// Add CSS for infection effect animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes infectionPop {
+        0% {
+            transform: scale(0.5);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(1) translateY(-30px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
 
 // Start the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {

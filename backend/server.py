@@ -18,8 +18,6 @@ sio = socketio.AsyncServer(
 app = aiohttp.web.Application()
 sio.attach(app)
 
-# Create an instance of WordWinnerResolver
-
 # Add static file serving
 async def index_handler(request):
     """Serve the main HTML file"""
@@ -60,13 +58,15 @@ app.router.add_get('/{path:.*}', static_handler)
 
 # Game state
 players = {}
+minions = {}  # All minions in the game, indexed by unique ID
 WORLD_WIDTH = 2000
 WORLD_HEIGHT = 1500
-INITIAL_SIZE = 20
+MINION_SIZE = 15
+FLEET_SIZE = 20
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
-BASE_MAX_SPEED = 270.0    # 4.5 pixels/tick * 60 ticks/sec
-MIN_SPEED = 90.0          # 1.5 pixels/tick * 60 ticks/sec
+BASE_MAX_SPEED = 200.0    # Base speed for minions
+MIN_SPEED = 120.0         # Minimum speed
 
 # Matplotlib Pastel1 color palette for beautiful blob colors
 PASTEL_COLORS = [
@@ -81,95 +81,127 @@ PASTEL_COLORS = [
 ]
 collision_cooldowns = {}  # Track collision cooldowns
 
-def get_unique_name(name: str, players: dict) -> str:
-    """Generates a unique name by appending a number if the name already exists."""
-    existing_names = {p.name for p in players.values()}
-    if name not in existing_names:
-        return name
-    
-    counter = 1
-    new_name = f"{name} ({counter})"
-    while new_name in existing_names:
-        counter += 1
-        new_name = f"{name} ({counter})"
-    return new_name
-
-class Player:
-    def __init__(self, player_id, name):
-        self.id = player_id
-        self.name = name
-        self.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        self.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
-        self.size = INITIAL_SIZE
-        # Use pastel colors instead of random colors
-        self.color = random.choice(PASTEL_COLORS)
+class Minion:
+    def __init__(self, minion_id, original_name, owner_id, x, y, color):
+        self.id = minion_id
+        self.original_name = original_name  # The minion's original name (never changes)
+        self.owner_id = owner_id  # Which player currently owns this minion
+        self.x = x
+        self.y = y
+        self.size = MINION_SIZE
+        self.color = color
         self.direction_dx = 0
         self.direction_dy = 0
         
     def to_dict(self):
         return {
             'id': self.id,
-            'name': self.name,
+            'original_name': self.original_name,
+            'owner_id': self.owner_id,
             'x': self.x,
             'y': self.y,
             'size': self.size,
             'color': self.color,
         }
+
+class Player:
+    def __init__(self, player_id, name):
+        self.id = player_id
+        self.name = name
+        self.color = random.choice(PASTEL_COLORS)
+        self.direction_dx = 0
+        self.direction_dy = 0
+        
+        # Create fleet of minions
+        self.create_fleet()
+        
+    def create_fleet(self):
+        """Create 20 minions for this player in a cluster formation"""
+        # Find a good spawn location
+        center_x = random.randint(100, WORLD_WIDTH - 100)
+        center_y = random.randint(100, WORLD_HEIGHT - 100)
+        
+        for i in range(FLEET_SIZE):
+            # Arrange minions in a circular formation
+            angle = (i / FLEET_SIZE) * 2 * math.pi
+            offset_x = math.cos(angle) * 50  # 50 pixel radius
+            offset_y = math.sin(angle) * 50
+            
+            minion_id = f"{self.id}_minion_{i}"
+            minion = Minion(
+                minion_id=minion_id,
+                original_name=self.name,
+                owner_id=self.id,
+                x=center_x + offset_x,
+                y=center_y + offset_y,
+                color=self.color
+            )
+            minions[minion_id] = minion
     
-    def get_max_speed(self):
-        """Calculates max speed based on size. Larger players are slower."""
-        size_for_min_speed = 400  # The size at which a player reaches MIN_SPEED
-        if self.size >= size_for_min_speed:
-            return MIN_SPEED
+    def get_owned_minions(self):
+        """Get all minions currently owned by this player"""
+        return [m for m in minions.values() if m.owner_id == self.id]
+    
+    def get_fleet_center(self):
+        """Calculate the center point of all owned minions"""
+        owned_minions = self.get_owned_minions()
+        if not owned_minions:
+            return 0, 0
+            
+        avg_x = sum(m.x for m in owned_minions) / len(owned_minions)
+        avg_y = sum(m.y for m in owned_minions) / len(owned_minions)
+        return avg_x, avg_y
+    
+    def to_dict(self):
+        owned_minions = self.get_owned_minions()
+        center_x, center_y = self.get_fleet_center()
         
-        if self.size <= INITIAL_SIZE:
-            return BASE_MAX_SPEED
+        return {
+            'id': self.id,
+            'name': self.name,
+            'color': self.color,
+            'minion_count': len(owned_minions),
+            'fleet_center_x': center_x,
+            'fleet_center_y': center_y,
+            'minions': [m.to_dict() for m in owned_minions],
+        }
 
-        # Linearly interpolate speed between BASE_MAX_SPEED and MIN_SPEED
-        speed_range = BASE_MAX_SPEED - MIN_SPEED
-        size_range = size_for_min_speed - INITIAL_SIZE
-        
-        # Calculate how far into the size range the player is
-        size_progress = (self.size - INITIAL_SIZE) / size_range
-        
-        speed = BASE_MAX_SPEED - (size_progress * speed_range)
-        return speed
-
-def check_collision(player1, player2):
-    """Check if two players are colliding"""
-    dx = player1.x - player2.x
-    dy = player1.y - player2.y
+def check_minion_collision(minion1, minion2):
+    """Check if two minions are colliding"""
+    dx = minion1.x - minion2.x
+    dy = minion1.y - minion2.y
     distance = math.sqrt(dx**2 + dy**2)
-    return distance < (player1.size + player2.size) / 2
+    return distance < (minion1.size + minion2.size) / 2
 
-async def handle_collision(player1, player2):
-    """Handle collision between two players - AI determines winner based on name power"""
-    # Use AI to determine winner based on name power, with caching
-    winner_name, loser_name = await determine_winner_with_cache(player1.name, player2.name)
+async def handle_minion_collision(minion1, minion2):
+    """Handle collision between two minions - winner infects loser"""
+    # Don't handle collision if minions have same owner
+    if minion1.owner_id == minion2.owner_id:
+        return None, None
     
-    # Find the actual player objects
-    winner = player1 if winner_name == player1.name else player2
-    loser = player2 if winner == player1 else player1
+    # Use AI to determine winner based on original names
+    winner_name, loser_name = await determine_winner_with_cache(minion1.original_name, minion2.original_name)
     
-    print(f"AI determined '{winner.name}' wins over '{loser.name}' based on name power!")
+    # Find the actual minion objects
+    winner = minion1 if winner_name == minion1.original_name else minion2
+    loser = minion2 if winner == minion1 else minion1
     
-    # Winner grows, loser shrinks or dies
-    size_transfer = loser.size * 0.3
-    winner.size += size_transfer
-    loser.size -= size_transfer
+    print(f"AI determined '{winner.original_name}' wins over '{loser.original_name}' - infecting!")
     
-    if loser.size < 10:
-        # Respawn the loser
-        loser.x = random.randint(INITIAL_SIZE, WORLD_WIDTH - INITIAL_SIZE)
-        loser.y = random.randint(INITIAL_SIZE, WORLD_HEIGHT - INITIAL_SIZE)
-        loser.size = INITIAL_SIZE
-        loser.color = random.choice(PASTEL_COLORS)
-        
-        # Send death notification to the loser so they can change their name
-        await sio.emit('player_died', {
-            'player_id': loser.id,
-            'current_name': loser.name
-        }, room=loser.id)
+    # Winner infects loser - loser changes owner and color but keeps original name
+    old_owner_id = loser.owner_id
+    loser.owner_id = winner.owner_id
+    loser.color = winner.color
+    
+    # Check if any player has lost all their minions
+    old_owner = players.get(old_owner_id)
+    if old_owner and len(old_owner.get_owned_minions()) == 0:
+        # Player has lost all minions - they're eliminated
+        await sio.emit('player_eliminated', {
+            'player_id': old_owner_id,
+            'player_name': old_owner.name
+        })
+        print(f'Player {old_owner.name} has been eliminated!')
     
     return winner, loser
 
@@ -183,6 +215,12 @@ async def disconnect(sid):
     print(f'Client {sid} disconnected')
     if sid in players:
         player_name = players[sid].name
+        
+        # Remove all minions owned by this player
+        minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
+        for m_id in minions_to_remove:
+            del minions[m_id]
+        
         del players[sid]
         await sio.emit('player_left', {'player_id': sid})
         print(f'Player {player_name} removed from game')
@@ -206,16 +244,17 @@ async def join_game(sid, data):
     player = Player(sid, player_name)
     players[sid] = player
     
-    # Send current game state to new player, confirming a successful join
+    # Send current game state to new player
     await sio.emit('game_state', {
         'players': [p.to_dict() for p in players.values()],
         'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+        'all_minions': [m.to_dict() for m in minions.values()],
     }, room=sid)
     
     # Notify others about new player
     await sio.emit('player_joined', player.to_dict(), skip_sid=sid)
     
-    print(f'Player {player_name} joined the game')
+    print(f'Player {player_name} joined the game with {FLEET_SIZE} minions')
 
 @sio.event
 async def move_player(sid, data):
@@ -223,13 +262,13 @@ async def move_player(sid, data):
         return
         
     player = players[sid]
-    # Client now sends a direction vector {dx, dy}
+    # Client sends a direction vector {dx, dy}
     player.direction_dx = data.get('dx', 0)
     player.direction_dy = data.get('dy', 0)
 
 @sio.event
 async def change_name(sid, data):
-    """Handle player name change request, ensuring uniqueness."""
+    """Handle player name change request"""
     if sid not in players:
         return
         
@@ -247,6 +286,11 @@ async def change_name(sid, data):
     
     old_name = player.name
     player.name = new_name
+    
+    # Update all minions that were originally owned by this player
+    for minion in minions.values():
+        if minion.original_name == old_name:
+            minion.original_name = new_name
     
     # Notify all clients about the name change
     await sio.emit('player_name_changed', {
@@ -266,7 +310,7 @@ async def error(sid, data):
     print(f'Error for {sid}: {data}')
 
 async def game_loop():
-    """Main game loop - now using a delta time model for frame-rate independence."""
+    """Main game loop - fleet-based movement and minion collision detection"""
     last_time = time.time()
     
     while True:
@@ -277,61 +321,84 @@ async def game_loop():
         # Clamp delta_time to prevent huge jumps if server has a major lag spike
         delta_time = min(delta_time, 0.1)
 
-        # --- Player Movement ---
+        # --- Minion Movement ---
         if len(players) >= 1:
             for player in players.values():
-                max_speed = player.get_max_speed() # speed in pixels per second
+                owned_minions = player.get_owned_minions()
                 
+                if not owned_minions:
+                    continue  # Player has no minions left
+                
+                # Calculate movement for all owned minions
                 direction_magnitude = math.sqrt(player.direction_dx**2 + player.direction_dy**2)
-
-                if direction_magnitude > 1: # If the cursor is not on the player
-                    # Calculate displacement based on speed and the exact time elapsed
-                    displacement = max_speed * delta_time
-                    
-                    player.x += (player.direction_dx / direction_magnitude) * displacement
-                    player.y += (player.direction_dy / direction_magnitude) * displacement
                 
-                # Keep within bounds (using size/2 for radius)
-                player.x = max(player.size / 2, min(WORLD_WIDTH - player.size / 2, player.x))
-                player.y = max(player.size / 2, min(WORLD_HEIGHT - player.size / 2, player.y))
-
-            # --- Collision Detection ---
-            player_list = list(players.values())
-            for i in range(len(player_list)):
-                for j in range(i + 1, len(player_list)):
-                    try:
-                        player1 = player_list[i]
-                        player2 = player_list[j]
+                if direction_magnitude > 1:  # If the cursor is not on the player
+                    # Calculate displacement based on speed and time elapsed
+                    displacement = BASE_MAX_SPEED * delta_time
+                    
+                    # Move each minion towards the target with some spread
+                    for i, minion in enumerate(owned_minions):
+                        # Add some variation to prevent all minions from stacking
+                        spread_angle = (i / len(owned_minions)) * 2 * math.pi
+                        spread_radius = 20
+                        spread_x = math.cos(spread_angle) * spread_radius
+                        spread_y = math.sin(spread_angle) * spread_radius
                         
-                        # Skip if either player no longer exists
-                        if player1.id not in players or player2.id not in players:
+                        # Calculate direction with spread
+                        target_dx = player.direction_dx + spread_x
+                        target_dy = player.direction_dy + spread_y
+                        target_magnitude = math.sqrt(target_dx**2 + target_dy**2)
+                        
+                        if target_magnitude > 0:
+                            minion.x += (target_dx / target_magnitude) * displacement
+                            minion.y += (target_dy / target_magnitude) * displacement
+                        
+                        # Keep within bounds
+                        minion.x = max(minion.size / 2, min(WORLD_WIDTH - minion.size / 2, minion.x))
+                        minion.y = max(minion.size / 2, min(WORLD_HEIGHT - minion.size / 2, minion.y))
+
+            # --- Minion Collision Detection ---
+            minion_list = list(minions.values())
+            for i in range(len(minion_list)):
+                for j in range(i + 1, len(minion_list)):
+                    try:
+                        minion1 = minion_list[i]
+                        minion2 = minion_list[j]
+                        
+                        # Skip if either minion no longer exists or same owner
+                        if (minion1.id not in minions or minion2.id not in minions or 
+                            minion1.owner_id == minion2.owner_id):
                             continue
                         
                         # Check collision cooldown
-                        collision_key = f"{player1.id}-{player2.id}"
+                        collision_key = f"{minion1.id}-{minion2.id}"
                         current_time = time.time()
                         
                         if collision_key in collision_cooldowns:
-                            if current_time - collision_cooldowns[collision_key] < 2.0:  # 2 second cooldown
+                            if current_time - collision_cooldowns[collision_key] < 1.0:  # 1 second cooldown
                                 continue
                         
-                        if check_collision(player1, player2):
+                        if check_minion_collision(minion1, minion2):
                             # Set cooldown
                             collision_cooldowns[collision_key] = current_time
                             
-                            winner, loser = await handle_collision(player1, player2)
-                            await sio.emit('collision', {
-                                'winner': winner.to_dict(),
-                                'loser': loser.to_dict(),
-                            })
+                            winner, loser = await handle_minion_collision(minion1, minion2)
+                            if winner and loser:
+                                await sio.emit('minion_infection', {
+                                    'winner': winner.to_dict(),
+                                    'loser': loser.to_dict(),
+                                })
                     except Exception as e:
-                        print(f"Error in collision detection: {e}")
+                        print(f"Error in minion collision detection: {e}")
                         continue
             
             # Send updated game state to all clients
-            await sio.emit('update_players', [p.to_dict() for p in players.values()])
+            await sio.emit('update_game_state', {
+                'players': [p.to_dict() for p in players.values()],
+                'all_minions': [m.to_dict() for m in minions.values()],
+            })
         
-        # Yield control to the event loop. The exact sleep duration is no longer critical for physics.
+        # Yield control to the event loop
         await asyncio.sleep(1/60)
 
 # --- Aiohttp application setup for clean-up ---
