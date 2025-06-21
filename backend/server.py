@@ -1,5 +1,6 @@
 import socketio
 import aiohttp.web
+import aiohttp_cors
 import uuid
 import asyncio
 import random
@@ -16,6 +17,17 @@ sio = socketio.AsyncServer(
     engineio_logger=False
 )
 app = aiohttp.web.Application()
+
+# Add CORS middleware to aiohttp
+cors = aiohttp_cors.setup(app, defaults={
+    "*": aiohttp_cors.ResourceOptions(
+        allow_credentials=False,
+        expose_headers="*",
+        allow_headers="*",
+        allow_methods="*"
+    )
+})
+
 sio.attach(app)
 
 # Add static file serving
@@ -52,9 +64,13 @@ async def static_handler(request):
     except Exception as e:
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
-# Add routes
+# Add routes with CORS
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
+
+# Apply CORS to all routes
+for route in list(app.router.routes()):
+    cors.add(route)
 
 # Game state
 players = {}
@@ -548,4 +564,9 @@ app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)
 
 if __name__ == '__main__':
-    aiohttp.web.run_app(app, host='localhost', port=5000)
+    # Get host and port from environment variables (for deployment) or use defaults (for local development)
+    host = os.environ.get('HOST', 'localhost')
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"Starting server on {host}:{port}")
+    aiohttp.web.run_app(app, host=host, port=port)
