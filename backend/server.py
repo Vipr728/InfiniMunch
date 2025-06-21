@@ -77,7 +77,7 @@ async def index_handler(request):
         return aiohttp.web.Response(text='Frontend not found', status=404)
 
 async def static_handler(request):
-    """Serve static files (CSS, JS)"""
+    """Serve static files (CSS, JS, images)"""
     try:
         file_path = request.match_info['path']
         full_path = f'../frontend/{file_path}'
@@ -85,27 +85,51 @@ async def static_handler(request):
         if not os.path.exists(full_path):
             return aiohttp.web.Response(text='File not found', status=404)
         
-        with open(full_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Determine content type
+        # Determine content type based on file extension
         if file_path.endswith('.css'):
             content_type = 'text/css'
+            mode = 'r'
+            encoding = 'utf-8'
         elif file_path.endswith('.js'):
             content_type = 'application/javascript'
+            mode = 'r'
+            encoding = 'utf-8'
+        elif file_path.endswith('.png'):
+            content_type = 'image/png'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
+            content_type = 'image/jpeg'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.gif'):
+            content_type = 'image/gif'
+            mode = 'rb'
+            encoding = None
+        elif file_path.endswith('.ico'):
+            content_type = 'image/x-icon'
+            mode = 'rb'
+            encoding = None
         else:
             content_type = 'text/plain'
+            mode = 'r'
+            encoding = 'utf-8'
         
-        return aiohttp.web.Response(text=content, content_type=content_type)
+        # Read file with appropriate mode
+        with open(full_path, mode, encoding=encoding) as f:
+            content = f.read()
+        
+        return aiohttp.web.Response(body=content, content_type=content_type)
     except Exception as e:
         return aiohttp.web.Response(text=f'Error: {str(e)}', status=500)
 
-# Add routes
+# Add routes with CORS
 app.router.add_get('/health', health_check)
 app.router.add_get('/test', test_endpoint)
-app.router.add_get('/test.html', lambda r: aiohttp.web.FileResponse('test.html'))
 app.router.add_get('/', index_handler)
 app.router.add_get('/{path:.*}', static_handler)
+
+# CORS is handled by the middleware above
 
 # Game state
 players = {}

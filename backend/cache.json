@@ -219,76 +219,28 @@
         "Chat",
         "bob"
     ],
-    "('abhi', 'hey')": [
-        "hey",
+    "('abhi', 'bread')": [
+        "bread",
         "abhi"
     ],
-    "('abhi', 'abhi')": [
-        "abhi",
+    "('bread', 'buff abhi')": [
+        "buff abhi",
+        "bread"
+    ],
+    "('abhi', 'buff abhi')": [
+        "buff abhi",
         "abhi"
     ],
-    "('Test', 'Tester')": [
-        "Tester",
-        "Test"
+    "('abi', 'sigma')": [
+        "sigma",
+        "abi"
     ],
-    "('Chat', 'Tester')": [
-        "Tester",
-        "Chat"
+    "('ahbi', 'dog')": [
+        "dog",
+        "ahbi"
     ],
-    "('Dog', 'Dog eater')": [
-        "Dog eater",
-        "Dog"
-    ],
-    "('Cookie monster', 'Dog eater')": [
-        "Dog eater",
-        "Cookie monster"
-    ],
-    "('Dog eater', 'ninja')": [
-        "ninja",
-        "Dog eater"
-    ],
-    "('cat', 'ninja')": [
-        "ninja",
-        "cat"
-    ],
-    "('Dog eater', 'cat')": [
-        "Dog eater",
-        "cat"
-    ],
-    "('Dog eater', 'chat')": [
-        "Dog eater",
-        "chat"
-    ],
-    "('Cat', 'Dog')": [
-        "Cat",
-        "Dog"
-    ],
-    "('Cat', 'Kibbles')": [
-        "Cat",
-        "Kibbles"
-    ],
-    "('Kibbles', 'not cat')": [
-        "Kibbles",
-        "not cat"
-    ],
-    "('Kibbles', 'meow')": [
-        "Kibbles",
-        "meow"
-    ],
-    "('Chat', 'streamer')": [
-        "Chat",
-        "streamer"
-    ],
-    "('Bob', 'Chat')": [
-        "Bob",
-        "Chat"
-    ],
-    "('Bob', 'Meow')": [
-        "Meow",
+    "('Bob', 'Test')": [
+        "Test",
         "Bob"
-    ],
-    "('Meow', 'vortex')": [
-        "Meow",
-        "vortex"
     ]
 }

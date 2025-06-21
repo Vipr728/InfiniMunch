@@ -74,25 +74,28 @@ class AgarioGame {
     }
     
     shouldShowAds() {
+        // TEMPORARY: Always show ads for debugging
+        return true;
+        
         // Show ads when camera is near world boundaries
-        const margin = 200; // Distance from edge to start showing ads
-        return this.cameraX < margin || 
-               this.cameraX + this.viewWidth > this.worldWidth - margin ||
-               this.cameraY < margin || 
-               this.cameraY + this.viewHeight > this.worldHeight - margin;
+        // const margin = 200; // Distance from edge to start showing ads
+        // return this.cameraX < margin || 
+        //        this.cameraX + this.viewWidth > this.worldWidth - margin ||
+        //        this.cameraY < margin || 
+        //        this.cameraY + this.viewHeight > this.worldHeight - margin;
     }
     
     getAdPositions() {
-        const adSize = 120; // Size of ad images
+        const adSize = 100; // Slightly smaller ad images
         const positions = [];
         
         // Fixed ad positions around the world boundaries (like soccer field ads)
-        const adSpacing = adSize + 40; // Space between ads
+        const adSpacing = adSize + 60; // Space between ads
         
-        // Left edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Left edge ads (fixed positions) - outside the left boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: -adSize - 20, // Just outside the left boundary
+                x: 20, // Just inside the left boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -101,10 +104,10 @@ class AgarioGame {
             });
         }
         
-        // Right edge ads (fixed positions)
-        for (let y = 100; y < this.worldHeight - 100; y += adSpacing) {
+        // Right edge ads (fixed positions) - outside the right boundary
+        for (let y = 150; y < this.worldHeight - 150; y += adSpacing) {
             positions.push({
-                x: this.worldWidth + 20, // Just outside the right boundary
+                x: this.worldWidth - adSize - 20, // Just inside the right boundary
                 y: y,
                 width: adSize,
                 height: adSize,
@@ -113,11 +116,11 @@ class AgarioGame {
             });
         }
         
-        // Top edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Top edge ads (fixed positions) - outside the top boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: -adSize - 20, // Just outside the top boundary
+                y: 20, // Just inside the top boundary
                 width: adSize,
                 height: adSize,
                 edge: 'top',
@@ -125,11 +128,11 @@ class AgarioGame {
             });
         }
         
-        // Bottom edge ads (fixed positions)
-        for (let x = 100; x < this.worldWidth - 100; x += adSpacing) {
+        // Bottom edge ads (fixed positions) - outside the bottom boundary
+        for (let x = 150; x < this.worldWidth - 150; x += adSpacing) {
             positions.push({
                 x: x,
-                y: this.worldHeight + 20, // Just outside the bottom boundary
+                y: this.worldHeight - adSize - 20, // Just inside the bottom boundary
                 width: adSize,
                 height: adSize,
                 edge: 'bottom',
@@ -145,32 +148,60 @@ class AgarioGame {
             return;
         }
         
-        const positions = this.getAdPositions();
+        // Debug: Log ad system status
+        console.log('Drawing ads - shouldShowAds:', this.shouldShowAds(), 'adImages.length:', this.adImages.length);
+        console.log('Camera position:', this.cameraX, this.cameraY);
+        console.log('World size:', this.worldWidth, this.worldHeight);
         
-        positions.forEach(pos => {
+        const positions = this.getAdPositions();
+        console.log('Ad positions generated:', positions.length);
+        
+        positions.forEach((pos, index) => {
             // Only draw ads that are visible on screen
             const screenX = (pos.x - this.cameraX) * (this.baseViewWidth / this.viewWidth);
             const screenY = (pos.y - this.cameraY) * (this.baseViewWidth / this.viewWidth);
             const screenWidth = pos.width * (this.baseViewWidth / this.viewWidth);
             const screenHeight = pos.height * (this.baseViewWidth / this.viewWidth);
             
-            // Check if ad is visible on screen
-            if (screenX + screenWidth > 0 && screenX < this.baseViewWidth &&
-                screenY + screenHeight > 0 && screenY < this.baseViewHeight) {
+            // Debug: Log coordinate transformation
+            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
+            
+            // Debug: Log coordinate transformation
+            console.log(`Ad ${index}: world(${pos.x}, ${pos.y}) -> screen(${screenX}, ${screenY})`);
+            
+            // Check if ad is visible on screen with some margin
+            if (screenX + screenWidth > -50 && screenX < this.baseViewWidth + 50 &&
+                screenY + screenHeight > -50 && screenY < this.baseViewHeight + 50) {
                 
-                const adImage = this.adImages[pos.adIndex];
+                console.log(`Drawing ad ${index} at screen position (${screenX}, ${screenY})`);
                 
                 // Draw ad background (soccer field style)
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 this.ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
                 
-                // Draw ad image
-                this.ctx.drawImage(adImage, screenX, screenY, screenWidth, screenHeight);
+                // Try to draw ad image, fallback to colored rectangle if image fails
+                const adImage = this.adImages[pos.adIndex];
+                if (adImage && adImage.complete && adImage.naturalWidth > 0) {
+                    this.ctx.drawImage(adImage, screenX, screenY, screenWidth, screenHeight);
+                } else {
+                    // Fallback: draw colored rectangle with ad index
+                    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+                    this.ctx.fillStyle = colors[pos.adIndex % colors.length];
+                    this.ctx.fillRect(screenX + 10, screenY + 10, screenWidth - 20, screenHeight - 20);
+                    
+                    // Draw text
+                    this.ctx.fillStyle = '#000000';
+                    this.ctx.font = '16px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(`AD ${pos.adIndex + 1}`, screenX + screenWidth/2, screenY + screenHeight/2);
+                }
                 
                 // Draw border (soccer field style)
                 this.ctx.strokeStyle = '#000000';
-                this.ctx.lineWidth = 3;
+                this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+            } else {
+                console.log(`Ad ${index} not visible on screen`);
             }
         });
     }
@@ -328,7 +359,18 @@ class AgarioGame {
         
         this.socket.on('connect_error', (error) => {
             console.error('Connection error:', error);
-            document.getElementById('connectionStatus').textContent = 'Connection failed: ' + error.message;
+            let errorMessage = 'Connection failed: ' + error.message;
+            
+            // Provide more helpful error messages
+            if (error.message.includes('CORS')) {
+                errorMessage = 'CORS error: Server not configured properly for cross-origin requests';
+            } else if (error.message.includes('404')) {
+                errorMessage = 'Server not found: Check if the server is running and accessible';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Connection timeout: Server may be overloaded or unreachable';
+            }
+            
+            document.getElementById('connectionStatus').textContent = errorMessage;
         });
         
         this.socket.on('disconnect', (reason) => {
