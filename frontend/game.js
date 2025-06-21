@@ -1,5 +1,9 @@
 class AgarioGame {
     constructor() {
+        // Game constants
+        this.MAX_FLEET_SIZE = 50; // Match backend MAX_FLEET_SIZE
+        
+        // Game state
         this.socket = null;
         this.canvas = null;
         this.ctx = null;
@@ -421,7 +425,26 @@ class AgarioGame {
             if (player) {
                 console.log(`${player.name} left the game`);
                 this.addChatMessage(`${player.name} left the battle.`, 'leave');
+                
+                // Remove ALL minions associated with this leaving player
+                // 1. Remove minions owned by this player
+                for (const [minionId, minion] of this.minions.entries()) {
+                    if (minion.owner_id === data.player_id) {
+                        this.minions.delete(minionId);
+                        console.log(`Removed owned minion: ${minionId}`);
+                    }
+                }
+                
+                // 2. Remove minions with the leaving player's name as original_name (infected minions)
+                for (const [minionId, minion] of this.minions.entries()) {
+                    if (minion.original_name === player.name) {
+                        this.minions.delete(minionId);
+                        console.log(`Removed infected minion with original name: ${minionId}`);
+                    }
+                }
+                
                 this.players.delete(data.player_id);
+                console.log(`All minions associated with ${player.name} have been removed`);
             }
         });
         
@@ -469,17 +492,32 @@ class AgarioGame {
         
         this.socket.on('infection_happened', (data) => {
             console.log('Infection happened:', data);
-            // Update the affected minions
-            this.minions.set(data.winner.id, data.winner);
-            this.minions.set(data.loser.id, data.loser);
             
-            // Add chat message for the battle result
-            const winnerName = data.winner.original_name;
-            const loserName = data.loser.original_name;
-            this.addChatMessage(`${winnerName} defeated ${loserName}!`, 'infection');
-            
-            // Show infection effect
-            this.showInfectionEffect(data.loser.x, data.loser.y);
+            if (data.max_fleet_kill) {
+                // Max fleet size kill - loser dies but winner doesn't gain the minion
+                // Remove the loser minion from our local state since it was deleted on server
+                this.minions.delete(data.loser.id);
+                
+                // Add chat message for the max fleet kill
+                const winnerName = data.winner.original_name;
+                const loserName = data.loser.original_name;
+                this.addChatMessage(`${winnerName} destroyed ${loserName}! (Max fleet size)`, 'infection');
+                
+                // Show destruction effect
+                this.showInfectionEffect(data.loser.x, data.loser.y);
+            } else {
+                // Normal infection - update the affected minions
+                this.minions.set(data.winner.id, data.winner);
+                this.minions.set(data.loser.id, data.loser);
+                
+                // Add chat message for the battle result
+                const winnerName = data.winner.original_name;
+                const loserName = data.loser.original_name;
+                this.addChatMessage(`${winnerName} defeated ${loserName}!`, 'infection');
+                
+                // Show infection effect
+                this.showInfectionEffect(data.loser.x, data.loser.y);
+            }
         });
         
         this.socket.on('player_eliminated', (data) => {
@@ -762,12 +800,23 @@ class AgarioGame {
     }
     
     drawMinions() {
-        // Cleanup: Remove any ghost minions that don't have valid owners
+        // Cleanup: Remove any ghost minions that don't have valid owners or original names
         const validPlayerIds = new Set(Array.from(this.players.keys()));
+        const validPlayerNames = new Set(Array.from(this.players.values()).map(p => p.name));
+        
         for (const [minionId, minion] of this.minions.entries()) {
+            // Remove minions with invalid owner IDs
             if (!validPlayerIds.has(minion.owner_id)) {
-                console.log('Removing ghost minion:', minionId, 'owned by invalid player:', minion.owner_id);
+                console.log('Removing ghost minion with invalid owner:', minionId, 'owned by:', minion.owner_id);
                 this.minions.delete(minionId);
+                continue;
+            }
+            
+            // Remove minions whose original_name doesn't match any current player
+            if (!validPlayerNames.has(minion.original_name)) {
+                console.log('Removing ghost minion with invalid original name:', minionId, 'original name:', minion.original_name);
+                this.minions.delete(minionId);
+                continue;
             }
         }
         
@@ -782,6 +831,10 @@ class AgarioGame {
         const radius = minion.size / 2;
         const isInvulnerable = minion.is_invulnerable || false;
         
+        // Check if owner has max fleet size
+        const owner = this.players.get(minion.owner_id);
+        const isAtMaxFleet = owner && owner.minion_count >= this.MAX_FLEET_SIZE;
+        
         // Draw very subtle glow effect for own minions
         if (isMyMinion) {
             this.ctx.save();
@@ -790,6 +843,20 @@ class AgarioGame {
             this.ctx.beginPath();
             this.ctx.arc(minion.x, minion.y, radius + 2, 0, Math.PI * 2);
             this.ctx.fill();
+            this.ctx.restore();
+        }
+        
+        // Draw max fleet size indicator (red pulsing border)
+        if (isAtMaxFleet) {
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.strokeStyle = '#ff6b6b';
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([6, 6]);
+            this.ctx.beginPath();
+            this.ctx.arc(minion.x, minion.y, radius + 4, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
             this.ctx.restore();
         }
         
@@ -904,13 +971,14 @@ class AgarioGame {
         const scaleX = 148 / this.worldWidth;
         const scaleY = 110 / this.worldHeight;
         
-        // Cleanup: Only draw minions with valid owners
+        // Cleanup: Only draw minions with valid owners and original names
         const validPlayerIds = new Set(Array.from(this.players.keys()));
+        const validPlayerNames = new Set(Array.from(this.players.values()).map(p => p.name));
         
         // Draw minions on minimap with enhanced visuals
         this.minions.forEach(minion => {
-            // Skip ghost minions
-            if (!validPlayerIds.has(minion.owner_id)) {
+            // Skip ghost minions with invalid owners or original names
+            if (!validPlayerIds.has(minion.owner_id) || !validPlayerNames.has(minion.original_name)) {
                 return;
             }
             
@@ -975,8 +1043,23 @@ class AgarioGame {
     updateUI() {
         const myPlayer = this.players.get(this.myPlayerId);
         if (myPlayer) {
-            document.getElementById('playerSize').textContent = `Minions: ${myPlayer.minion_count}`;
+            const isAtMax = myPlayer.minion_count >= this.MAX_FLEET_SIZE;
+            const minionText = isAtMax ? 
+                `Minions: ${myPlayer.minion_count} (MAX FLEET!)` : 
+                `Minions: ${myPlayer.minion_count}`;
+            
+            document.getElementById('playerSize').textContent = minionText;
             document.getElementById('playerName2').textContent = myPlayer.name;
+            
+            // Add visual indicator for max fleet size
+            const playerSizeElement = document.getElementById('playerSize');
+            if (isAtMax) {
+                playerSizeElement.style.color = '#ff6b6b';
+                playerSizeElement.style.fontWeight = 'bold';
+            } else {
+                playerSizeElement.style.color = '';
+                playerSizeElement.style.fontWeight = '';
+            }
         }
         this.updateLeaderboard();
     }
@@ -1003,10 +1086,14 @@ class AgarioGame {
                 entry.classList.add('is-me');
             }
             
+            // Add max fleet indicator
+            const isAtMax = player.minion_count >= this.MAX_FLEET_SIZE;
+            const minionCountText = isAtMax ? `${player.minion_count} (MAX)` : player.minion_count;
+            
             entry.innerHTML = `
                 <span class="leaderboard-rank">#${index + 1}</span>
                 <span class="leaderboard-name">${player.name}</span>
-                <span class="leaderboard-size">${player.minion_count}</span>
+                <span class="leaderboard-size" style="${isAtMax ? 'color: #ff6b6b; font-weight: bold;' : ''}">${minionCountText}</span>
             `;
             
             leaderboardList.appendChild(entry);
