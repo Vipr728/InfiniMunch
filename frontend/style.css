@@ -1,0 +1,132 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    overflow: hidden;
+}
+
+.screen {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#menu {
+    text-align: center;
+}
+
+#menu h1 {
+    font-size: 3em;
+    margin-bottom: 30px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+#playerName {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 25px;
+    margin-right: 10px;
+    outline: none;
+    min-width: 200px;
+}
+
+#joinButton {
+    padding: 12px 25px;
+    font-size: 16px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+#joinButton:hover {
+    background: #45a049;
+}
+
+#joinButton:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+}
+
+#connectionStatus {
+    color: #ffeb3b;
+    font-size: 14px;
+}
+
+#game {
+    position: relative;
+    background: #000;
+}
+
+#gameUI {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    background: rgba(0,0,0,0.7);
+    padding: 15px;
+    border-radius: 10px;
+}
+
+#playerInfo {
+    margin-bottom: 10px;
+}
+
+#playerInfo span {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+#instructions {
+    font-size: 12px;
+    color: #ccc;
+    max-width: 250px;
+    line-height: 1.4;
+}
+
+#gameCanvas {
+    border: 2px solid #333;
+    background: #f0f0f0;
+    cursor: none;
+}
+
+.collision-effect {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #ff4444;
+    border-radius: 50%;
+    animation: collisionBurst 0.5s ease-out forwards;
+}
+
+@keyframes collisionBurst {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(3);
+        opacity: 0;
+    }
+} 

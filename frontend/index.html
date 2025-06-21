@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Agario</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="menu" class="screen">
+        <h1>Multiplayer Agario</h1>
+        <div class="input-group">
+            <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            <button id="joinButton">Join Game</button>
+        </div>
+        <div id="connectionStatus">Connecting to server...</div>
+    </div>
+
+    <div id="game" class="screen hidden">
+        <div id="gameUI">
+            <div id="playerInfo">
+                <span id="playerSize">Size: 20</span>
+                <span id="playerName2"></span>
+            </div>
+            <div id="instructions">
+                Move your mouse to control your blob. When two blobs collide, one randomly wins!
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 
