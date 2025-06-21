@@ -370,5 +370,13 @@
     "('diff', 'stronggeorge')": [
         "stronggeorge",
         "diff"
+    ],
+    "('name', 'stronggeorge')": [
+        "stronggeorge",
+        "name"
+    ],
+    "('strong', 'weak')": [
+        "strong",
+        "weak"
     ]
 }

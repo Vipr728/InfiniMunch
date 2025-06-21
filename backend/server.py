@@ -412,15 +412,32 @@ async def change_name(sid, data):
     if len(owned_minions) == 0:
         print(f'Respawning eliminated player {old_name} as {new_name}')
         
-        # Remove only the minions that are still owned by this player
-        # (Don't remove infected minions that now belong to other players)
+        # Comprehensive cleanup: Remove ALL minions associated with this player
+        # 1. Remove minions owned by this player
         minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
         for m_id in minions_to_remove:
+            del minions[m_id]
+        
+        # 2. Remove minions with the player's old name as original_name
+        minions_to_remove_by_name = [m_id for m_id, m in minions.items() if m.original_name == old_name]
+        for m_id in minions_to_remove_by_name:
+            del minions[m_id]
+        
+        # 3. Remove any orphaned minions that were infected by this player
+        minions_to_remove_orphaned = [m_id for m_id, m in minions.items() 
+                                     if m.original_name == old_name and m.owner_id != sid]
+        for m_id in minions_to_remove_orphaned:
             del minions[m_id]
         
         # Create new fleet for respawned player
         player.color = random.choice(PASTEL_COLORS)  # Get new color
         player.create_fleet()
+        
+        # Emit respawn event to trigger frontend cleanup
+        await sio.emit('player_respawned', {
+            'player_id': sid,
+            'player_name': new_name
+        })
         
         # Send updated game state to ALL players to ensure synchronization
         game_state_data = {
@@ -488,20 +505,38 @@ async def respawn_player(sid, data):
     player = players[sid]
     current_time = time.time()
     
-    # Remove any existing minions for this player
+    # Comprehensive cleanup: Remove ALL minions associated with this player
+    # 1. Remove minions owned by this player
     minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
     for m_id in minions_to_remove:
+        del minions[m_id]
+    
+    # 2. Remove minions with the player's name as original_name
+    minions_to_remove_by_name = [m_id for m_id, m in minions.items() if m.original_name == player.name]
+    for m_id in minions_to_remove_by_name:
+        del minions[m_id]
+    
+    # 3. Remove any orphaned minions that were infected by this player
+    minions_to_remove_orphaned = [m_id for m_id, m in minions.items() 
+                                 if m.original_name == player.name and m.owner_id != sid]
+    for m_id in minions_to_remove_orphaned:
         del minions[m_id]
     
     # Respawn the player
     player.is_dead = False
     player.color = random.choice(PASTEL_COLORS)
     
-    # Create new fleet for respawned player - this is the crucial missing part!
+    # Create new fleet for respawned player
     player.create_fleet()
     
     # Give 3 seconds of invulnerability
     player.invulnerable_until = current_time + 3.0
+    
+    # Emit respawn event to trigger frontend cleanup
+    await sio.emit('player_respawned', {
+        'player_id': sid,
+        'player_name': player.name
+    })
     
     # Send updated game state to ALL players to ensure synchronization
     game_state_data = {

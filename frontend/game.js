@@ -376,6 +376,7 @@ class AgarioGame {
             this.worldWidth = data.world.width;
             this.worldHeight = data.world.height;
             
+            // Clear all existing data to ensure no ghost minions remain
             this.players.clear();
             this.minions.clear();
             
@@ -449,7 +450,16 @@ class AgarioGame {
                 this.players.set(playerData.id, playerData);
             });
             
-            // Update minions - add new minions if they don't exist
+            // For minions, we need to be more careful to avoid ghost minions
+            // First, remove any minions that are no longer in the server's list
+            const serverMinionIds = new Set(data.all_minions.map(m => m.id));
+            for (const [minionId, minion] of this.minions.entries()) {
+                if (!serverMinionIds.has(minionId)) {
+                    this.minions.delete(minionId);
+                }
+            }
+            
+            // Then update/add minions from the server
             data.all_minions.forEach(minionData => {
                 this.minions.set(minionData.id, minionData);
             });
@@ -480,9 +490,16 @@ class AgarioGame {
                 player.is_dead = true;
                 this.addChatMessage(`${player.name} was eliminated!`, 'elimination');
                 
-                // Remove all minions that belong to this eliminated player
+                // Remove ALL minions that belong to this eliminated player
                 for (const [minionId, minion] of this.minions.entries()) {
                     if (minion.owner_id === data.player_id) {
+                        this.minions.delete(minionId);
+                    }
+                }
+                
+                // Also remove any minions with the player's name as original_name
+                for (const [minionId, minion] of this.minions.entries()) {
+                    if (minion.original_name === player.name) {
                         this.minions.delete(minionId);
                     }
                 }
@@ -491,6 +508,20 @@ class AgarioGame {
                 // Current player was eliminated - show respawn modal
                 this.showNameChangeModal(this.players.get(this.myPlayerId)?.name || '');
             }
+        });
+        
+        this.socket.on('player_respawned', (data) => {
+            console.log('Player respawned:', data);
+            
+            // Clear ALL minions to ensure no ghost minions remain
+            this.minions.clear();
+            
+            // If this is our own respawn, also clear any cached data
+            if (data.player_id === this.myPlayerId) {
+                console.log('Clearing all minions for our respawn');
+            }
+            
+            // The game_state event will populate with the new minions
         });
         
         this.socket.on('player_name_changed', (data) => {
@@ -731,7 +762,16 @@ class AgarioGame {
     }
     
     drawMinions() {
-        // Draw all minions
+        // Cleanup: Remove any ghost minions that don't have valid owners
+        const validPlayerIds = new Set(Array.from(this.players.keys()));
+        for (const [minionId, minion] of this.minions.entries()) {
+            if (!validPlayerIds.has(minion.owner_id)) {
+                console.log('Removing ghost minion:', minionId, 'owned by invalid player:', minion.owner_id);
+                this.minions.delete(minionId);
+            }
+        }
+        
+        // Draw all remaining minions
         this.minions.forEach(minion => {
             this.drawMinion(minion);
         });
@@ -864,8 +904,16 @@ class AgarioGame {
         const scaleX = 148 / this.worldWidth;
         const scaleY = 110 / this.worldHeight;
         
+        // Cleanup: Only draw minions with valid owners
+        const validPlayerIds = new Set(Array.from(this.players.keys()));
+        
         // Draw minions on minimap with enhanced visuals
         this.minions.forEach(minion => {
+            // Skip ghost minions
+            if (!validPlayerIds.has(minion.owner_id)) {
+                return;
+            }
+            
             const x = minion.x * scaleX + 1;
             const y = minion.y * scaleY + 1;
             const size = Math.max(2, minion.size * scaleX * 0.4);
@@ -1029,15 +1077,15 @@ class AgarioGame {
             // First change the name if it's different
             const currentPlayer = this.players.get(this.myPlayerId);
             if (currentPlayer && currentPlayer.name !== newName) {
-                // Clear current game state before respawning
+                // Clear current game state before respawning to prevent ghost minions
                 this.players.clear();
                 this.minions.clear();
                 
                 this.socket.emit('change_name', { name: newName });
+            } else {
+                // If name is the same, just respawn with cleanup
+                this.socket.emit('respawn_player', {});
             }
-            
-            // Then respawn
-            this.socket.emit('respawn_player', {});
         }
         
         this.hideNameChangeModal();
