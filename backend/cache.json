@@ -242,5 +242,37 @@
     "('Bob', 'Test')": [
         "Test",
         "Bob"
+    ],
+    "('Ethereal Diamond abhi', 'Weak-Like-Abhi Spatial george')": [
+        "Ethereal Diamond abhi",
+        "Weak-Like-Abhi Spatial george"
+    ],
+    "('Ethereal Diamond abhi', 'Obsidian Merge-Conflicting joseph')": [
+        "Obsidian Merge-Conflicting joseph",
+        "Ethereal Diamond abhi"
+    ],
+    "('Ethereal Diamond abhi', '\ud83d\udc80 Obsidian Merge-Conflicting joseph')": [
+        "Ethereal Diamond abhi",
+        "\ud83d\udc80 Obsidian Merge-Conflicting joseph"
+    ],
+    "('Ethereal Diamond abhi', 'Nonchalant \ud83d\udc80 Obsidian Merge-Conflicting joseph')": [
+        "Nonchalant \ud83d\udc80 Obsidian Merge-Conflicting joseph",
+        "Ethereal Diamond abhi"
+    ],
+    "('Nonchalant \ud83d\udc80 Obsidian Merge-Conflicting joseph', 'goo')": [
+        "goo",
+        "Nonchalant \ud83d\udc80 Obsidian Merge-Conflicting joseph"
+    ],
+    "('goo', 'sword')": [
+        "sword",
+        "goo"
+    ],
+    "('Weak-Like-Abhi Arch-Linux-Using Obsidian Hello', 'sword')": [
+        "sword",
+        "Weak-Like-Abhi Arch-Linux-Using Obsidian Hello"
+    ],
+    "('Golden godlikecomplexion', 'sword')": [
+        "sword",
+        "Golden godlikecomplexion"
     ]
 }
