@@ -55,80 +55,168 @@
         "God Eater",
         "God Eater"
     ],
-    "('abhinav(indian)', 'cologn')": [
-        "cologn",
-        "abhinav(indian)"
+    "('Joseph', 'Ross')": [
+        "Ross",
+        "Joseph"
     ],
-    "('abhinav(indian)', 'abhinav(indian)')": [
-        "abhinav(indian)",
-        "abhinav(indian)"
+    "('BOb', 'Josehp')": [
+        "BOb",
+        "Josehp"
     ],
-    "('abhinav', 'cologn')": [
-        "abhinav",
-        "cologn"
+    "('Josehp', 'Josehp')": [
+        "Josehp",
+        "Josehp"
     ],
-    "('cologn', 'cologn')": [
-        "cologn",
-        "cologn"
+    "('Joseph', 'bob')": [
+        "bob",
+        "Joseph"
     ],
-    "('abhinav', 'abhinav(indian)')": [
-        "abhinav",
-        "abhinav(indian)"
+    "('Bob', 'bob')": [
+        "bob",
+        "Bob"
     ],
-    "('god', 'goddd')": [
-        "goddd",
-        "god"
+    "('Bob', 'Bob ross')": [
+        "Bob ross",
+        "Bob"
     ],
-    "('god', 'god')": [
-        "god",
-        "god"
+    "('Bob ross', 'Joseph')": [
+        "Bob ross",
+        "Joseph"
     ],
-    "('dg', 'god')": [
-        "dg",
-        "god"
+    "('Bob', 'Jojo')": [
+        "Jojo",
+        "Bob"
     ],
-    "('chat', 'twitch')": [
-        "chat",
-        "twitch"
+    "('Abhi', 'Joseph')": [
+        "Abhi",
+        "Joseph"
     ],
-    "('twitch', 'twitch')": [
-        "twitch",
-        "twitch"
+    "('Chat', 'Joseph')": [
+        "Chat",
+        "Joseph"
     ],
-    "('chat', 'top')": [
-        "top",
+    "('Abhi', 'Chat')": [
+        "Chat",
+        "Abhi"
+    ],
+    "('Abhi', 'Abhi')": [
+        "Abhi",
+        "Abhi"
+    ],
+    "('Dog', 'Joseph')": [
+        "Dog",
+        "Joseph"
+    ],
+    "('Chat', 'Dog')": [
+        "Dog",
+        "Chat"
+    ],
+    "('Abhi', 'Dog')": [
+        "Dog",
+        "Abhi"
+    ],
+    "('Chat', 'Chat')": [
+        "Chat",
+        "Chat"
+    ],
+    "('Dog', 'God')": [
+        "Dog",
+        "God"
+    ],
+    "('God', 'God')": [
+        "God",
+        "God"
+    ],
+    "('God', 'Joseph')": [
+        "God",
+        "Joseph"
+    ],
+    "('Abhi', 'God')": [
+        "God",
+        "Abhi"
+    ],
+    "('Black hole', 'Dog')": [
+        "Dog",
+        "Black hole"
+    ],
+    "('Black hole', 'Black hole')": [
+        "Black hole",
+        "Black hole"
+    ],
+    "('Joseph', 'sun')": [
+        "sun",
+        "Joseph"
+    ],
+    "('Abhi', 'sun')": [
+        "sun",
+        "Abhi"
+    ],
+    "('God', 'sun')": [
+        "sun",
+        "God"
+    ],
+    "('BLACK HOLE', 'Joseph')": [
+        "BLACK HOLE",
+        "Joseph"
+    ],
+    "('BLACK HOLE', 'God')": [
+        "BLACK HOLE",
+        "God"
+    ],
+    "('BLACK HOLE', 'sun')": [
+        "BLACK HOLE",
+        "sun"
+    ],
+    "('sun', 'sun')": [
+        "sun",
+        "sun"
+    ],
+    "('Abhi', 'BLACK HOLE')": [
+        "BLACK HOLE",
+        "Abhi"
+    ],
+    "('BLACK HOLE', 'Bob')": [
+        "Bob",
+        "BLACK HOLE"
+    ],
+    "('Bob', 'God')": [
+        "Bob",
+        "God"
+    ],
+    "('Bob', 'sun')": [
+        "Bob",
+        "sun"
+    ],
+    "('Abhi', 'Bob')": [
+        "Bob",
+        "Abhi"
+    ],
+    "('BLACK HOLE', 'Dog')": [
+        "Dog",
+        "BLACK HOLE"
+    ],
+    "('BLACK HOLE', 'BLACK HOLE')": [
+        "BLACK HOLE",
+        "BLACK HOLE"
+    ],
+    "('Bob', 'Dog')": [
+        "Dog",
+        "Bob"
+    ],
+    "('Dog', 'sun')": [
+        "Dog",
+        "sun"
+    ],
+    "('Chat', 'God')": [
+        "Chat",
+        "God"
+    ],
+    "('Chat', 'chat')": [
+        "Chat",
         "chat"
     ],
-    "('top', 'twitch')": [
-        "top",
-        "twitch"
-    ],
-    "('chat', 'chat')": [
-        "chat",
-        "chat"
-    ],
-    "('abhinav', 'top')": [
-        "abhinav",
-        "top"
-    ],
-    "('top', 'top')": [
-        "top",
-        "top"
-    ],
-    "('loser', 'winner')": [
-        "winner",
-        "loser"
-    ],
-    "('loser', 'loser')": [
-        "loser",
-        "loser"
-    ],
-    "('loser', 'respawn')": [
-        "respawn",
-        "loser"
-    ],
-    "('respawn', 'winner')": [
-        "respawn",
-        "winner"
+    "('Chat', 'bob')": [
+        "Chat",
+        "bob"
     ]
 }

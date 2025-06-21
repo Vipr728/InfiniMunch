@@ -61,14 +61,14 @@ players = {}
 minions = {}  # All minions in the game, indexed by unique ID
 WORLD_WIDTH = 2000
 WORLD_HEIGHT = 1500
-MINION_SIZE = 15
-FLEET_SIZE = 20
+MINION_SIZE = 45
+FLEET_SIZE = 5
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
 BASE_MAX_SPEED = 200.0    # Base speed for minions
 MIN_SPEED = 120.0         # Minimum speed
 
-# Matplotlib Pastel1 color palette for beautiful blob colors
+# Original Matplotlib Pastel1 color palette for beautiful blob colors
 PASTEL_COLORS = [
     "#fbb4ae",  # Light pink
     "#b3cde3",  # Light blue
@@ -92,6 +92,7 @@ class Minion:
         self.color = color
         self.direction_dx = 0
         self.direction_dy = 0
+        self.last_infection_time = 0  # Timestamp of last infection for invulnerability
         
         # Respawn and invulnerability state
         self.is_dead = False
@@ -99,6 +100,9 @@ class Minion:
         self.respawn_time = 0
         
     def to_dict(self):
+        current_time = time.time()
+        is_invulnerable = current_time - self.last_infection_time < 2.0
+        
         return {
             'id': self.id,
             'original_name': self.original_name,
@@ -107,6 +111,7 @@ class Minion:
             'y': self.y,
             'size': self.size,
             'color': self.color,
+            'is_invulnerable': is_invulnerable,
         }
 
 class Player:
@@ -121,7 +126,7 @@ class Player:
         self.create_fleet()
         
     def create_fleet(self):
-        """Create 20 minions for this player in a cluster formation"""
+        """Create 5 minions for this player in a cluster formation"""
         # Find a good spawn location
         center_x = random.randint(100, WORLD_WIDTH - 100)
         center_y = random.randint(100, WORLD_HEIGHT - 100)
@@ -197,6 +202,7 @@ async def handle_minion_collision(minion1, minion2):
     old_owner_id = loser.owner_id
     loser.owner_id = winner.owner_id
     loser.color = winner.color
+    loser.last_infection_time = time.time()  # Set invulnerability period
     
     # Check if any player has lost all their minions
     old_owner = players.get(old_owner_id)
@@ -292,19 +298,45 @@ async def change_name(sid, data):
     old_name = player.name
     player.name = new_name
     
-    # Update all minions that were originally owned by this player
-    for minion in minions.values():
-        if minion.original_name == old_name:
-            minion.original_name = new_name
-    
-    # Notify all clients about the name change
-    await sio.emit('player_name_changed', {
-        'player_id': sid,
-        'old_name': old_name,
-        'new_name': new_name
-    })
-    
-    print(f'Player {old_name} changed name to {new_name}')
+    # Check if player is eliminated (has no minions) - if so, respawn them
+    owned_minions = player.get_owned_minions()
+    if len(owned_minions) == 0:
+        print(f'Respawning eliminated player {old_name} as {new_name}')
+        
+        # Remove old minions that might still have the old name
+        minions_to_remove = [m_id for m_id, m in minions.items() if m.original_name == old_name]
+        for m_id in minions_to_remove:
+            del minions[m_id]
+        
+        # Create new fleet for respawned player
+        player.color = random.choice(PASTEL_COLORS)  # Get new color
+        player.create_fleet()
+        
+        # Send updated game state to the respawned player
+        await sio.emit('game_state', {
+            'players': [p.to_dict() for p in players.values()],
+            'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+            'all_minions': [m.to_dict() for m in minions.values()],
+        }, room=sid)
+        
+        # Notify others about respawned player
+        await sio.emit('player_joined', player.to_dict(), skip_sid=sid)
+        
+        print(f'Player {new_name} respawned with {FLEET_SIZE} new minions')
+    else:
+        # Update all minions that were originally owned by this player
+        for minion in minions.values():
+            if minion.original_name == old_name:
+                minion.original_name = new_name
+        
+        # Just notify about name change for existing players
+        await sio.emit('player_name_changed', {
+            'player_id': sid,
+            'old_name': old_name,
+            'new_name': new_name
+        })
+        
+        print(f'Player {old_name} changed name to {new_name}')
 
 @sio.event
 async def respawn_player(sid, data):
@@ -376,6 +408,9 @@ async def game_loop():
                 if not owned_minions:
                     continue  # Player has no minions left
                 
+                # Calculate fleet center for cohesion force
+                fleet_center_x, fleet_center_y = player.get_fleet_center()
+                
                 # Calculate movement for all owned minions
                 direction_magnitude = math.sqrt(player.direction_dx**2 + player.direction_dy**2)
                 
@@ -396,9 +431,50 @@ async def game_loop():
                         target_dy = player.direction_dy + spread_y
                         target_magnitude = math.sqrt(target_dx**2 + target_dy**2)
                         
+                        # Add cohesion force toward fleet center
+                        cohesion_dx = fleet_center_x - minion.x
+                        cohesion_dy = fleet_center_y - minion.y
+                        cohesion_distance = math.sqrt(cohesion_dx**2 + cohesion_dy**2)
+                        
+                        # Apply cohesion force (stronger when farther from center)
+                        if cohesion_distance > 0:
+                            cohesion_strength = min(cohesion_distance / 100, 0.2)  # Reduced from 0.3 to 0.2
+                            cohesion_dx = (cohesion_dx / cohesion_distance) * cohesion_strength * displacement
+                            cohesion_dy = (cohesion_dy / cohesion_distance) * cohesion_strength * displacement
+                        else:
+                            cohesion_dx = cohesion_dy = 0
+                        
+                        # Add separation force from other minions in the same fleet
+                        separation_dx = 0
+                        separation_dy = 0
+                        separation_radius = minion.size * 1.5  # Avoid overlapping within 1.5x minion size
+                        
+                        for other_minion in owned_minions:
+                            if other_minion.id != minion.id:
+                                dx = minion.x - other_minion.x
+                                dy = minion.y - other_minion.y
+                                distance = math.sqrt(dx**2 + dy**2)
+                                
+                                # If too close, add separation force
+                                if distance < separation_radius and distance > 0:
+                                    # Stronger separation when closer
+                                    separation_strength = (separation_radius - distance) / separation_radius
+                                    separation_strength = separation_strength * 0.8  # Max separation strength
+                                    
+                                    separation_dx += (dx / distance) * separation_strength * displacement
+                                    separation_dy += (dy / distance) * separation_strength * displacement
+                        
                         if target_magnitude > 0:
-                            minion.x += (target_dx / target_magnitude) * displacement
-                            minion.y += (target_dy / target_magnitude) * displacement
+                            # Combine target movement with cohesion and separation
+                            move_x = (target_dx / target_magnitude) * displacement * 0.6 + cohesion_dx + separation_dx
+                            move_y = (target_dy / target_magnitude) * displacement * 0.6 + cohesion_dy + separation_dy
+                            
+                            minion.x += move_x
+                            minion.y += move_y
+                        else:
+                            # Even when not moving, apply cohesion and separation
+                            minion.x += cohesion_dx + separation_dx
+                            minion.y += cohesion_dy + separation_dy
                         
                         # Keep within bounds
                         minion.x = max(minion.size / 2, min(WORLD_WIDTH - minion.size / 2, minion.x))
@@ -426,15 +502,21 @@ async def game_loop():
                                 continue
                         
                         if check_minion_collision(minion1, minion2):
-                            # Set cooldown
-                            collision_cooldowns[collision_key] = current_time
+                            # Check invulnerability periods (2 second invulnerability after infection)
+                            minion1_vulnerable = current_time - minion1.last_infection_time > 2.0
+                            minion2_vulnerable = current_time - minion2.last_infection_time > 2.0
                             
-                            winner, loser = await handle_minion_collision(minion1, minion2)
-                            if winner and loser:
-                                await sio.emit('minion_infection', {
-                                    'winner': winner.to_dict(),
-                                    'loser': loser.to_dict(),
-                                })
+                            # Only allow infection if both minions are vulnerable
+                            if minion1_vulnerable and minion2_vulnerable:
+                                # Set cooldown
+                                collision_cooldowns[collision_key] = current_time
+                                
+                                winner, loser = await handle_minion_collision(minion1, minion2)
+                                if winner and loser:
+                                    await sio.emit('minion_infection', {
+                                        'winner': winner.to_dict(),
+                                        'loser': loser.to_dict(),
+                                    })
                     except Exception as e:
                         print(f"Error in minion collision detection: {e}")
                         continue
