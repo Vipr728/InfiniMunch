@@ -1,32 +1,23 @@
-from ai import ai_resolver
+from ai import determine_winner_with_cache, _cache
 import asyncio
 
-class WordWinnerResolver:
-    def __init__(self):
-        # Use a tuple of sorted words as the key to avoid duplicates and enable O(1) lookup
-        self.cache = {
-            tuple(sorted(["word1", "word2"])): ("word1", "word2"),  
-        }
-
-    async def determine_winner(self, word1, word2):
-        """
-        Check if combination of two words is present in the cache, and return the winner based on the cache.
-        If not present, use AI and add the result to the cache.
-        """
-        key = tuple(sorted([word1, word2]))
-        if key in self.cache:
-            return self.cache[key]
-        result = await ai_resolver.determine_winner(word1, word2)
-        self.cache[key] = result
-        print(self.cache)
-        return result
+async def main():
+    """Main function to run tests for the winner determination logic."""
+    print("--- Running tests for winner determination ---")
+    
+    # These should hit the cache if already present, or call the AI and populate it
+    print(await determine_winner_with_cache('word1', 'word2'))
+    print(await determine_winner_with_cache('word2', 'word1'))
+    print(await determine_winner_with_cache('abhi', 'joseph'))
+    
+    # These calls should be instant cache hits
+    print(await determine_winner_with_cache('joseph', 'abhi'))
+    print(await determine_winner_with_cache('abhi', 'joseph'))
+    
+    print("\n--- Current Cache State ---")
+    print(_cache)
+    print("--------------------------")
 
 if __name__ == "__main__":
-    resolver = WordWinnerResolver()
-    print(asyncio.run(resolver.determine_winner('word1', 'word2')))  # Should print ('word1', 'word2')
-    print(asyncio.run(resolver.determine_winner('word2', 'word1')))  # Should print ('word1', 'word2')
-    print(asyncio.run(resolver.determine_winner('abhi', 'joseph')))
-    print(asyncio.run(resolver.determine_winner('joseph', 'abhi')))
-    print(asyncio.run(resolver.determine_winner('joseph', 'abhi')))
-    print(asyncio.run(resolver.determine_winner('abhi', 'joseph')))
-    print(resolver.cache)
+    asyncio.run(main())
+

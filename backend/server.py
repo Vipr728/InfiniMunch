@@ -6,8 +6,7 @@ import random
 import math
 import time
 import os
-from ai import ai_resolver
-from abhinav import WordWinnerResolver
+from ai import determine_winner_with_cache
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
@@ -133,8 +132,8 @@ def check_collision(player1, player2):
 
 async def handle_collision(player1, player2):
     """Handle collision between two players - AI determines winner based on name power"""
-    # Use AI to determine winner based on name power
-    winner_name, loser_name = await word_resolver.determine_winner(player1.name, player2.name)
+    # Use AI to determine winner based on name power, with caching
+    winner_name, loser_name = await determine_winner_with_cache(player1.name, player2.name)
     
     # Find the actual player objects
     winner = player1 if winner_name == player1.name else player2

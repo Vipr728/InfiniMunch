@@ -1,6 +1,7 @@
 import google.generativeai as genai
 import asyncio
 import os
+import json
 from typing import Tuple, Optional
 from dotenv import load_dotenv
 
@@ -79,3 +80,53 @@ class AICollisionResolver:
 
 # Global AI resolver instance
 ai_resolver = AICollisionResolver()
+
+
+# --- Persistent Caching Logic ---
+
+CACHE_FILE = os.path.join(os.path.dirname(__file__), 'cache.json')
+
+def _tuple_key(word1: str, word2: str) -> str:
+    """Creates a consistent, sorted key for the cache."""
+    return str(tuple(sorted([word1, word2])))
+
+def _load_cache() -> dict:
+    """Loads the cache from cache.json if it exists."""
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r') as f:
+            try:
+                data = json.load(f)
+                # Convert list values from JSON back to tuples
+                return {k: tuple(v) for k, v in data.items()}
+            except json.JSONDecodeError:
+                return {}  # Return empty if file is corrupt or empty
+    return {}
+
+def _save_cache(cache: dict):
+    """Saves the cache to cache.json."""
+    with open(CACHE_FILE, 'w') as f:
+        # Convert tuple values to lists for JSON compatibility
+        json.dump({k: list(v) for k, v in cache.items()}, f, indent=4)
+
+# Global cache, loaded on startup
+_cache = _load_cache()
+
+async def determine_winner_with_cache(player1_name: str, player2_name: str) -> Tuple[str, str]:
+    """
+    Determines a winner using a persistent cache.
+    If the pair is not in the cache, it calls the AI and saves the result.
+    """
+    key = _tuple_key(player1_name, player2_name)
+    
+    if key in _cache:
+        print(f"Cache hit for: ({player1_name}, {player2_name})")
+        return _cache[key]
+    
+    print(f"Cache miss for: ({player1_name}, {player2_name}). Calling AI.")
+    winner, loser = await ai_resolver.determine_winner(player1_name, player2_name)
+    
+    # Add to cache and save to file
+    _cache[key] = (winner, loser)
+    _save_cache(_cache)
+    
+    return winner, loser
