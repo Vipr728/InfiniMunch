@@ -9,17 +9,22 @@ import os
 
 # Try to import AI module, but don't fail if it's not available
 try:
-    from ai import determine_winner_with_cache
+    from ai import determine_winner_with_cache, check_name_appropriateness
     AI_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: AI module not available: {e}")
     AI_AVAILABLE = False
     
-    # Fallback function
+    # Fallback functions
     async def determine_winner_with_cache(player1_name, player2_name):
         winner_name = random.choice([player1_name, player2_name])
         loser_name = player2_name if winner_name == player1_name else player1_name
         return winner_name, loser_name
+    
+    async def check_name_appropriateness(player_name):
+        # Fallback: assume appropriate if AI module not available
+        print(f"Warning: No AI module available for name check, allowing '{player_name}'")
+        return True
 
 # Create a Socket.IO server
 sio = socketio.AsyncServer(
@@ -142,8 +147,8 @@ MAX_FLEET_SIZE = 50  # Maximum 50 minions per player
 INITIAL_SIZE = 50  # Initial size for respawned players
 # --- Constants for a professional, time-based physics model ---
 # Speeds are now in pixels per SECOND, not pixels per tick.
-BASE_MAX_SPEED = 500.0    # Base speed for minions (increased from 200.0 for much faster gameplay)
-MIN_SPEED = 300.0         # Minimum speed (increased from 120.0)
+BASE_MAX_SPEED = 1200.0   # Base speed for minions (reduced from 2400.0 - was too fast)
+MIN_SPEED = 750.0         # Minimum speed (reduced from 1500.0 - was too fast)
 
 # Original Matplotlib Pastel1 color palette for beautiful blob colors
 PASTEL_COLORS = [
@@ -170,6 +175,7 @@ class Minion:
         self.direction_dx = 0
         self.direction_dy = 0
         self.last_infection_time = 0  # Timestamp of last infection for invulnerability
+        self.can_infect_after = 0  # Time after which this minion can infect others (prevents chain reactions)
         
         # Respawn and invulnerability state
         self.is_dead = False
@@ -189,6 +195,7 @@ class Minion:
             'size': self.size,
             'color': self.color,
             'is_invulnerable': is_invulnerable,
+            'can_infect': current_time >= self.can_infect_after,
         }
 
 class Player:
@@ -223,6 +230,8 @@ class Player:
                 y=center_y + offset_y,
                 color=self.color
             )
+            # New minions can infect immediately (only newly infected ones have delay)
+            minion.can_infect_after = 0
             minions[minion_id] = minion
     
     def get_owned_minions(self):
@@ -264,6 +273,17 @@ async def handle_minion_collision(minion1, minion2):
     """Handle collision between two minions - winner infects loser"""
     # Don't handle collision if minions have same owner
     if minion1.owner_id == minion2.owner_id:
+        return
+
+    # Check if either minion is invulnerable
+    current_time = time.time()
+    if (current_time - minion1.last_infection_time < 2.0 or 
+        current_time - minion2.last_infection_time < 2.0):
+        return
+    
+    # Check if either minion cannot infect yet (prevents chain reactions)
+    if (current_time < minion1.can_infect_after or 
+        current_time < minion2.can_infect_after):
         return
 
     # Use AI to determine winner based on original names
@@ -308,7 +328,8 @@ async def handle_minion_collision(minion1, minion2):
         loser.owner_id = winner.owner_id
         loser.color = winner.color
         loser.original_name = winner.original_name  # Infected minion takes on winner's name
-        loser.last_infection_time = time.time()  # Set invulnerability period
+        loser.last_infection_time = current_time  # Set invulnerability period
+        loser.can_infect_after = current_time + 1.5  # Prevent newly infected minion from infecting for 1.5 seconds
         
         # Emit infection event with correct original names
         await sio.emit('infection_happened', {
@@ -321,7 +342,10 @@ async def handle_minion_collision(minion1, minion2):
     old_owner = players.get(old_owner_id)
     if old_owner and len(old_owner.get_owned_minions()) == 0:
         # Player has lost all minions - they're eliminated
-        print(f'Player {old_owner.name} is being eliminated - comprehensive cleanup')
+        winner_owner = players.get(winner.owner_id)
+        eliminator_name = winner_owner.name if winner_owner else "Unknown"
+        
+        print(f'Player {old_owner.name} is being eliminated by {eliminator_name} - comprehensive cleanup')
         
         # Comprehensive cleanup: Remove ALL minions associated with this eliminated player
         # 1. Remove minions still owned by this player
@@ -343,10 +367,11 @@ async def handle_minion_collision(minion1, minion2):
             'all_minions': [m.to_dict() for m in minions.values()],
         }
         
-        # Emit elimination event first
+        # Emit elimination event first with eliminator info
         await sio.emit('player_eliminated', {
             'player_id': old_owner_id,
-            'player_name': old_owner.name
+            'player_name': old_owner.name,
+            'eliminated_by': eliminator_name
         })
         
         # Then send updated game state to all players
@@ -355,7 +380,7 @@ async def handle_minion_collision(minion1, minion2):
             'all_minions': game_state_data['all_minions']
         })
         
-        print(f'Player {old_owner.name} has been eliminated! Removed all associated minions.')
+        print(f'Player {old_owner.name} has been eliminated by {eliminator_name}! Removed all associated minions.')
 
 @sio.event
 async def connect(sid, environ):
@@ -411,6 +436,12 @@ async def join_game(sid, data):
         await sio.emit('join_failed', {'message': 'Please enter a name.'}, room=sid)
         return
 
+    # Check if name is appropriate
+    is_appropriate = await check_name_appropriateness(player_name)
+    if not is_appropriate:
+        await sio.emit('join_failed', {'message': 'Please be civil and PG in your naming. Spread love, not hate. The world is a nasty place. As creators, our goal is to make it a better one. Got it? Good luck and have fun!'}, room=sid)
+        return
+
     # Check if name is already in use
     existing_names = {p.name for p in players.values()}
     if player_name in existing_names:
@@ -460,6 +491,16 @@ async def change_name(sid, data):
     
     if not new_name:
         return
+
+    # Check if this is from adjective collection (bypass content moderation for system-generated names)
+    is_adjective_collection = data.get('from_adjective_collection', False)
+    
+    if not is_adjective_collection:
+        # Check if name is appropriate (only for user-entered names)
+        is_appropriate = await check_name_appropriateness(new_name)
+        if not is_appropriate:
+            await sio.emit('name_change_failed', {'message': 'Please be civil and PG in your naming. Spread love, not hate. The world is a nasty place. As creators, our goal is to make it a better one. Got it? Good luck and have fun!'}, room=sid)
+            return
 
     # Check if the name is already taken by another player
     existing_names = {p.name for p in players.values() if p.id != sid}
@@ -690,23 +731,32 @@ async def game_loop():
                         target_dy = player.direction_dy + spread_y
                         target_magnitude = math.sqrt(target_dx**2 + target_dy**2)
                         
-                        # Add cohesion force toward fleet center
+                        # Add cohesion force toward fleet center (natural blob gravity)
                         cohesion_dx = fleet_center_x - minion.x
                         cohesion_dy = fleet_center_y - minion.y
                         cohesion_distance = math.sqrt(cohesion_dx**2 + cohesion_dy**2)
                         
-                        # Apply cohesion force (stronger when farther from center)
+                        # Apply cohesion force - natural blob attraction
                         if cohesion_distance > 0:
-                            cohesion_strength = min(cohesion_distance / 100, 0.2)  # Reduced from 0.3 to 0.2
+                            # Stronger attraction for closer blobs (like surface tension)
+                            if cohesion_distance < 80:
+                                # Close to center - strong natural attraction
+                                cohesion_strength = min(cohesion_distance / 120, 0.6)  # Strong but not excessive
+                            else:
+                                # Farther away - moderate attraction to stay together
+                                cohesion_strength = min(cohesion_distance / 100, 0.7)  # Moderate pull
+                            
                             cohesion_dx = (cohesion_dx / cohesion_distance) * cohesion_strength * displacement
                             cohesion_dy = (cohesion_dy / cohesion_distance) * cohesion_strength * displacement
                         else:
                             cohesion_dx = cohesion_dy = 0
                         
-                        # Add separation force from other minions in the same fleet
+                        # Add separation force from other minions in the same fleet - FLUID BLOB behavior
                         separation_dx = 0
                         separation_dy = 0
-                        separation_radius = minion.size * 1.5  # Avoid overlapping within 1.5x minion size
+                        
+                        # Smaller separation radius for more natural clustering (like fluid blobs)
+                        separation_radius = minion.size * 1.3  # Much closer together for blob-like feel
                         
                         for other_minion in owned_minions:
                             if other_minion.id != minion.id:
@@ -714,21 +764,32 @@ async def game_loop():
                                 dy = minion.y - other_minion.y
                                 distance = math.sqrt(dx**2 + dy**2)
                                 
-                                # If too close, add separation force
+                                # Only separate when actually overlapping (like squishy blobs)
                                 if distance < separation_radius and distance > 0:
-                                    # Stronger separation when closer
+                                    # Gentle, elastic separation (like bouncing fluid blobs)
                                     separation_strength = (separation_radius - distance) / separation_radius
-                                    separation_strength = separation_strength * 0.8  # Max separation strength
+                                    
+                                    # Soft bounce effect - stronger when very close but not harsh
+                                    if distance < minion.size * 0.8:
+                                        # Very close - gentle elastic bounce
+                                        separation_strength = separation_strength * 0.4  # Gentle bounce
+                                    else:
+                                        # Slight overlap - very gentle nudge
+                                        separation_strength = separation_strength * 0.2  # Very gentle
                                     
                                     separation_dx += (dx / distance) * separation_strength * displacement
                                     separation_dy += (dy / distance) * separation_strength * displacement
                         
                         if target_magnitude > 0:
-                            # Combine target movement with cohesion and separation
-                            # Increase target movement factor and reduce cohesion/separation impact for large fleets
-                            target_factor = 0.8  # Increased from 0.6
-                            cohesion_factor = 0.1 if minion_count <= 5 else 0.05  # Reduce cohesion for large fleets
-                            separation_factor = 0.1 if minion_count <= 5 else 0.05  # Reduce separation for large fleets
+                            # Natural fluid blob behavior - prioritize cohesion with gentle separation
+                            target_factor = 0.7    # Direct movement is primary
+                            cohesion_factor = 0.4   # Strong natural attraction (like surface tension)
+                            separation_factor = 0.15 # Gentle bounce when overlapping
+                            
+                            # Large fleets still want to cluster but with gentle spacing
+                            if minion_count > 20:
+                                cohesion_factor = 0.45  # Even stronger attraction for large groups
+                                separation_factor = 0.2  # Slightly more gentle bouncing
                             
                             move_x = (target_dx / target_magnitude) * displacement * target_factor + cohesion_dx * cohesion_factor + separation_dx * separation_factor
                             move_y = (target_dy / target_magnitude) * displacement * target_factor + cohesion_dy * cohesion_factor + separation_dy * separation_factor
@@ -736,13 +797,26 @@ async def game_loop():
                             minion.x += move_x
                             minion.y += move_y
                         else:
-                            # Even when not moving, apply cohesion and separation
-                            minion.x += cohesion_dx + separation_dx
-                            minion.y += cohesion_dy + separation_dy
+                            # When not moving, maintain natural blob clustering with gentle spacing
+                            cohesion_idle_factor = 0.5   # Natural attraction when idle
+                            separation_idle_factor = 0.3  # Gentle bouncing to prevent hard overlap
+                            
+                            minion.x += cohesion_dx * cohesion_idle_factor + separation_dx * separation_idle_factor
+                            minion.y += cohesion_dy * cohesion_idle_factor + separation_dy * separation_idle_factor
                         
-                        # Keep within bounds
-                        minion.x = max(minion.size / 2, min(WORLD_WIDTH - minion.size / 2, minion.x))
-                        minion.y = max(minion.size / 2, min(WORLD_HEIGHT - minion.size / 2, minion.y))
+                        # Keep within bounds with soft bouncing to fix edge glitches
+                        margin = minion.size / 2
+                        
+                        # Soft boundary constraints to prevent edge glitches
+                        if minion.x < margin:
+                            minion.x = margin + (margin - minion.x) * 0.1  # Soft bounce from left edge
+                        elif minion.x > WORLD_WIDTH - margin:
+                            minion.x = WORLD_WIDTH - margin - (minion.x - (WORLD_WIDTH - margin)) * 0.1  # Soft bounce from right edge
+                            
+                        if minion.y < margin:
+                            minion.y = margin + (margin - minion.y) * 0.1  # Soft bounce from top edge
+                        elif minion.y > WORLD_HEIGHT - margin:
+                            minion.y = WORLD_HEIGHT - margin - (minion.y - (WORLD_HEIGHT - margin)) * 0.1  # Soft bounce from bottom edge
 
             # --- Minion Collision Detection ---
             minion_list = list(minions.values())

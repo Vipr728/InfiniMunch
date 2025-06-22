@@ -528,7 +528,13 @@ class AgarioGame {
             if (player) {
                 // Immediately mark the player as dead so they disappear
                 player.is_dead = true;
-                this.addChatMessage(`${player.name} was eliminated!`, 'elimination');
+                
+                // Add chat message with eliminator info
+                if (data.eliminated_by) {
+                    this.addChatMessage(`${player.name} was eliminated by ${data.eliminated_by}!`, 'elimination');
+                } else {
+                    this.addChatMessage(`${player.name} was eliminated!`, 'elimination');
+                }
                 
                 // Remove ALL minions that belong to this eliminated player
                 for (const [minionId, minion] of this.minions.entries()) {
@@ -545,8 +551,10 @@ class AgarioGame {
                 }
             }
             if (data.player_id === this.myPlayerId) {
-                // Current player was eliminated - show respawn modal
-                this.showNameChangeModal(this.players.get(this.myPlayerId)?.name || '');
+                // Current player was eliminated - show respawn modal with eliminator info
+                const currentName = this.players.get(this.myPlayerId)?.name || '';
+                const eliminatorInfo = data.eliminated_by ? ` You died to ${data.eliminated_by}.` : '';
+                this.showNameChangeModal(currentName, eliminatorInfo);
             }
         });
         
@@ -1134,16 +1142,28 @@ class AgarioGame {
         }, 1000);
     }
     
-    showNameChangeModal(currentName) {
+    showNameChangeModal(currentName, eliminatorInfo = '') {
         // Use the stored original name (which could be multiple words)
         const originalName = this.originalPlayerName || currentName;
         
+        // Update modal text to include eliminator info if provided
+        const modalP = document.querySelector('.modal-content p');
+        if (eliminatorInfo) {
+            modalP.textContent = `Choose a stronger name to respawn.${eliminatorInfo}`;
+        } else {
+            modalP.textContent = 'Choose a stronger name to respawn';
+        }
+        
         const nameInput = document.getElementById('newPlayerName');
         nameInput.value = originalName;
-        nameInput.select();
-        nameInput.focus();
         
         document.getElementById('nameChangeModal').classList.remove('hidden');
+        
+        // Focus and select the input field for immediate typing
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select(); // Auto-select all text
+        }, 300); // Increased timeout to ensure modal is fully rendered and auto-select works
     }
     
     hideNameChangeModal() {
@@ -1271,18 +1291,25 @@ class AgarioGame {
         const myPlayer = this.players.get(this.myPlayerId);
         if (!myPlayer) return;
         
-        const collectionRadius = 50; // Distance to collect items
+        const collectionRadius = 30; // Distance for minion to collect items (reduced since minions are smaller)
         
         this.specialItems.forEach((item, itemId) => {
             if (item.collected) return;
             
-            // Check distance from player's fleet center
-            const dx = item.x - myPlayer.fleet_center_x;
-            const dy = item.y - myPlayer.fleet_center_y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < collectionRadius) {
-                this.collectItem(item);
+            // Check if any of the player's minions are close enough to collect
+            for (const [minionId, minion] of this.minions.entries()) {
+                // Only check minions owned by this player
+                if (minion.owner_id !== this.myPlayerId) continue;
+                
+                const dx = item.x - minion.x;
+                const dy = item.y - minion.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // If any minion touches the item, collect it
+                if (distance < collectionRadius) {
+                    this.collectItem(item);
+                    return; // Exit early once collected
+                }
             }
         });
     }
@@ -1295,7 +1322,7 @@ class AgarioGame {
         if (myPlayer) {
             const currentName = myPlayer.name;
             const newName = `${item.adjective} ${currentName}`;
-            this.socket.emit('change_name', { name: newName });
+            this.socket.emit('change_name', { name: newName, from_adjective_collection: true });
             
             // Show collection effect
             this.showItemCollectionEffect(item.x, item.y, item.adjective);

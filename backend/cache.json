@@ -422,5 +422,149 @@
     "('wakka', 'wakka killer')": [
         "wakka",
         "wakka killer"
+    ],
+    "('DDoS-Vulnerable Hackathon-Winning Startup-Accelerating chat', 'eater')": [
+        "eater",
+        "DDoS-Vulnerable Hackathon-Winning Startup-Accelerating chat"
+    ],
+    "('American \ud83e\udd85\ud83e\udd85\ud83c\uddfa\ud83c\uddf8\ud83c\uddfa\ud83c\uddf8 MCP-Integrated meow', 'cat eater')": [
+        "cat eater",
+        "American \ud83e\udd85\ud83e\udd85\ud83c\uddfa\ud83c\uddf8\ud83c\uddfa\ud83c\uddf8 MCP-Integrated meow"
+    ],
+    "('American \ud83e\udd85\ud83e\udd85\ud83c\uddfa\ud83c\uddf8\ud83c\uddfa\ud83c\uddf8 MCP-Integrated meow', 'Sigma cat eater')": [
+        "Sigma cat eater",
+        "American \ud83e\udd85\ud83e\udd85\ud83c\uddfa\ud83c\uddf8\ud83c\uddfa\ud83c\uddf8 MCP-Integrated meow"
+    ],
+    "('Sigma cat eater', 'animal eater')": [
+        "Sigma cat eater",
+        "animal eater"
+    ],
+    "('Sigma cat eater', 'Weak-Like-Abhi bruh')": [
+        "Sigma cat eater",
+        "Weak-Like-Abhi bruh"
+    ],
+    "('Sigma cat eater', 'chat')": [
+        "Sigma cat eater",
+        "chat"
+    ],
+    "('Underdeveloped Obsidian Sigma cat eater', 'chat')": [
+        "chat",
+        "Underdeveloped Obsidian Sigma cat eater"
+    ],
+    "('Currently-Cramping DDoS-Vulnerable chat', 'Underdeveloped Obsidian Sigma cat eater')": [
+        "Underdeveloped Obsidian Sigma cat eater",
+        "Currently-Cramping DDoS-Vulnerable chat"
+    ],
+    "('animal eater', 'cat eater')": [
+        "animal eater",
+        "cat eater"
+    ],
+    "('animal eater', 'food')": [
+        "animal eater",
+        "food"
+    ],
+    "('animal eater', 'chat')": [
+        "chat",
+        "animal eater"
+    ],
+    "('Cyber chat', 'animal eater')": [
+        "Cyber chat",
+        "animal eater"
+    ],
+    "('Cyber chat', 'black hole')": [
+        "black hole",
+        "Cyber chat"
+    ],
+    "('Indian \ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3 black hole', 'chat')": [
+        "Indian \ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3 black hole",
+        "chat"
+    ],
+    "('Indian \ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3 black hole', 'anything eater')": [
+        "anything eater",
+        "Indian \ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3\ud83c\uddee\ud83c\uddf3 black hole"
+    ],
+    "('anything eater', 'black hole')": [
+        "black hole",
+        "anything eater"
+    ],
+    "('anything eater', 'cat')": [
+        "anything eater",
+        "cat"
+    ],
+    "('Startup-Accelerating cat', 'anything eater')": [
+        "Startup-Accelerating cat",
+        "anything eater"
+    ],
+    "('FAANG Startup-Accelerating cat', 'anything eater')": [
+        "FAANG Startup-Accelerating cat",
+        "anything eater"
+    ],
+    "('Underdeveloped FAANG Startup-Accelerating cat', 'gravity well')": [
+        "gravity well",
+        "Underdeveloped FAANG Startup-Accelerating cat"
+    ],
+    "('cat', 'gravity well')": [
+        "cat",
+        "gravity well"
+    ],
+    "('cat', 'food')": [
+        "food",
+        "cat"
+    ],
+    "('anything eater', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "anything eater"
+    ],
+    "('black hole', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "black hole"
+    ],
+    "('blackest hole', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "blackest hole"
+    ],
+    "('black hole cluster', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "black hole cluster"
+    ],
+    "('\ud83d\udc80', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "\ud83d\udc80"
+    ],
+    "('nonchalant king', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "nonchalant king"
+    ],
+    "('cat pasta', '\ud83d\udc80 cat')": [
+        "\ud83d\udc80 cat",
+        "cat pasta"
+    ],
+    "('bongo cat!', '\ud83d\udc80 cat')": [
+        "bongo cat!",
+        "\ud83d\udc80 cat"
+    ],
+    "('bongo cat!', 'cat')": [
+        "bongo cat!",
+        "cat"
+    ],
+    "('API-Breaking bongo cat!', 'bongo cat')": [
+        "API-Breaking bongo cat!",
+        "bongo cat"
+    ],
+    "('API-Breaking bongo cat!', 'og bongo cat')": [
+        "API-Breaking bongo cat!",
+        "og bongo cat"
+    ],
+    "('API-Breaking bongo cat!', 'bro bongo cat')": [
+        "API-Breaking bongo cat!",
+        "bro bongo cat"
+    ],
+    "('API-Breaking bongo cat!', 'best friend')": [
+        "API-Breaking bongo cat!",
+        "best friend"
+    ],
+    "('API-Breaking bongo cat!', 'mom')": [
+        "mom",
+        "API-Breaking bongo cat!"
     ]
 }

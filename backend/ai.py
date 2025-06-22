@@ -134,3 +134,52 @@ async def determine_winner_with_cache(player1_name: str, player2_name: str) -> T
     _save_cache(_cache)
     
     return winner, loser
+
+async def check_name_appropriateness(player_name: str) -> bool:
+    """
+    Use AI to determine if a player name is appropriate for the game.
+    Returns True if appropriate, False if inappropriate.
+    """
+    if not ai_resolver.model:
+        # Fallback: assume appropriate if no AI available
+        print(f"Warning: No AI available for name check, allowing '{player_name}'")
+        return True
+    
+    prompt = f"""
+    Is the name "{player_name}" appropriate for a family-friendly multiplayer game?
+
+    Only treat a name as INAPPROPRIATE if it contains:
+    - Explicit sexual content or innuendo
+    - Profanity, vulgar language, or slurs
+    - Harassing or hate-speech (e.g. "femboy" used as an insult, "molestor", etc.)
+
+    If it does *not* contain any of those, it's family-friendly.
+
+    Respond with **ONLY** one word:  
+    - "APPROPRIATE"  
+    - "INAPPROPRIATE"
+
+    Response: """
+
+    try:
+        # Run the AI call in a thread to avoid blocking
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, ai_resolver._call_gemini, prompt)
+        
+        # Clean up the response
+        result = response.strip().upper()
+        
+        # Validate the response
+        if result == "APPROPRIATE":
+            return True
+        elif result == "INAPPROPRIATE":
+            return False
+        else:
+            # If AI response doesn't match expected format, be conservative
+            print(f"Unexpected AI response for name '{player_name}': {result}")
+            return False
+            
+    except Exception as e:
+        print(f"AI name check failed for '{player_name}': {e}")
+        # Fallback: be conservative on AI failure
+        return False
