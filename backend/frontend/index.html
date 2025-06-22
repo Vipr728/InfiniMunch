@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InfiniMunch - Fleet Commander</title>
+    <title>InfiniMunch</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="menu" class="screen">
         <h1>InfiniMunch</h1>
-        <h2>Concept: AI logic game of the future</h2>
-        <p class="game-description">Enter the strongest name you can think of, e.g. butterknife would beat butter</p>
+        <p class="game-description">Stronger names win battles</p>
         <div class="input-group">
             <div class="input-with-button">
-                <input type="text" id="playerName" placeholder="Enter the strongest name you can think of..." maxlength="20">
+                <input type="text" id="playerName" placeholder="Enter your name..." maxlength="20">
                 <button id="joinButton" class="arrow-button">→</button>
             </div>
         </div>
-        <div id="connectionStatus">Connecting to server...</div>
+        <div id="connectionStatus">Connecting...</div>
     </div>
 
     <div id="game" class="screen hidden">
@@ -49,12 +48,11 @@
     <div id="nameChangeModal" class="modal hidden">
         <div class="modal-content">
             <h2>Fleet Eliminated!</h2>
-            <p>Your entire fleet has been consumed! Choose a more powerful name to respawn with a stronger fleet!</p>
-            <p class="modal-tip"><strong>💡 Tip:</strong> Try names like "Phoenix", "Thunder", "Vortex" - powerful names win more battles!</p>
+            <p>Choose a stronger name to respawn</p>
             <div class="input-group">
-                <input type="text" id="newPlayerName" placeholder="Enter a powerful name..." maxlength="20">
+                <input type="text" id="newPlayerName" placeholder="Enter name..." maxlength="20">
                 <div class="button-group">
-                    <button id="changeNameButton">Respawn Fleet</button>
+                    <button id="changeNameButton">Respawn</button>
                 </div>
             </div>
         </div>
