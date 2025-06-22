@@ -275,11 +275,10 @@ async def handle_minion_collision(minion1, minion2):
 
     # Check if winner's fleet is already at maximum size
     winner_owner = players.get(winner.owner_id)
+    winner_at_max = False
     if winner_owner:
         winner_fleet_size = len(winner_owner.get_owned_minions())
-        if winner_fleet_size >= MAX_FLEET_SIZE:
-            # Winner's fleet is at maximum size, no infection occurs
-            return
+        winner_at_max = winner_fleet_size >= MAX_FLEET_SIZE
 
     print(f"AI determined '{winner.original_name}' wins over '{original_loser_name}' - infecting!")
     
@@ -287,33 +286,76 @@ async def handle_minion_collision(minion1, minion2):
     loser_dict = loser.to_dict()
     loser_dict['original_name'] = original_loser_name
 
-    # Winner infects loser - loser changes owner, color, and takes on winner's name
+    # Store the old owner ID for elimination check
     old_owner_id = loser.owner_id
-    loser.owner_id = winner.owner_id
-    loser.color = winner.color
-    loser.original_name = winner.original_name  # Infected minion takes on winner's name
-    loser.last_infection_time = time.time()  # Set invulnerability period
-    
-    # Emit infection event with correct original names
-    await sio.emit('infection_happened', {
-        'winner': winner.to_dict(),
-        'loser': loser_dict
-    })
 
-    # Check if any player has lost all their minions
+    if winner_at_max:
+        # Winner is at max fleet size - loser dies but winner doesn't gain the minion
+        print(f"Winner '{winner.original_name}' is at max fleet size - loser dies without takeover")
+        
+        # Remove the losing minion completely
+        del minions[loser.id]
+        
+        # Emit a special event for max fleet size kill
+        await sio.emit('infection_happened', {
+            'winner': winner.to_dict(),
+            'loser': loser_dict,
+            'max_fleet_kill': True
+        })
+    else:
+        # Normal infection - winner gains the minion
+        # Winner infects loser - loser changes owner, color, and takes on winner's name
+        loser.owner_id = winner.owner_id
+        loser.color = winner.color
+        loser.original_name = winner.original_name  # Infected minion takes on winner's name
+        loser.last_infection_time = time.time()  # Set invulnerability period
+        
+        # Emit infection event with correct original names
+        await sio.emit('infection_happened', {
+            'winner': winner.to_dict(),
+            'loser': loser_dict,
+            'max_fleet_kill': False
+        })
+
+    # Check if any player has lost all their minions (regardless of takeover or kill)
     old_owner = players.get(old_owner_id)
     if old_owner and len(old_owner.get_owned_minions()) == 0:
         # Player has lost all minions - they're eliminated
-        # Remove any remaining minions that still belong to this player
+        print(f'Player {old_owner.name} is being eliminated - comprehensive cleanup')
+        
+        # Comprehensive cleanup: Remove ALL minions associated with this eliminated player
+        # 1. Remove minions still owned by this player
         minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == old_owner_id]
         for m_id in minions_to_remove:
             del minions[m_id]
+            print(f'Removed owned minion: {m_id}')
         
+        # 2. Remove minions with the eliminated player's name as original_name (infected minions)
+        minions_to_remove_by_name = [m_id for m_id, m in minions.items() if m.original_name == old_owner.name]
+        for m_id in minions_to_remove_by_name:
+            del minions[m_id]
+            print(f'Removed infected minion with original name: {m_id}')
+        
+        # Send updated game state to ALL players to ensure ghost minions are removed
+        game_state_data = {
+            'players': [p.to_dict() for p in players.values()],
+            'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+            'all_minions': [m.to_dict() for m in minions.values()],
+        }
+        
+        # Emit elimination event first
         await sio.emit('player_eliminated', {
             'player_id': old_owner_id,
             'player_name': old_owner.name
         })
-        print(f'Player {old_owner.name} has been eliminated!')
+        
+        # Then send updated game state to all players
+        await sio.emit('update_game_state', {
+            'players': game_state_data['players'],
+            'all_minions': game_state_data['all_minions']
+        })
+        
+        print(f'Player {old_owner.name} has been eliminated! Removed all associated minions.')
 
 @sio.event
 async def connect(sid, environ):
@@ -327,15 +369,37 @@ async def disconnect(sid):
     print(f'Client {sid} disconnected')
     if sid in players:
         player_name = players[sid].name
+        print(f'Player {player_name} disconnected - comprehensive cleanup')
         
-        # Remove all minions owned by this player
+        # Comprehensive cleanup: Remove ALL minions associated with this player
+        # 1. Remove minions owned by this player
         minions_to_remove = [m_id for m_id, m in minions.items() if m.owner_id == sid]
         for m_id in minions_to_remove:
             del minions[m_id]
+            print(f'Removed owned minion: {m_id}')
+        
+        # 2. Remove minions with the disconnected player's name as original_name (infected minions)
+        minions_to_remove_by_name = [m_id for m_id, m in minions.items() if m.original_name == player_name]
+        for m_id in minions_to_remove_by_name:
+            del minions[m_id]
+            print(f'Removed infected minion with original name: {m_id}')
         
         del players[sid]
+        
+        # Send updated game state to all remaining players
+        game_state_data = {
+            'players': [p.to_dict() for p in players.values()],
+            'world': {'width': WORLD_WIDTH, 'height': WORLD_HEIGHT},
+            'all_minions': [m.to_dict() for m in minions.values()],
+        }
+        
         await sio.emit('player_left', {'player_id': sid})
-        print(f'Player {player_name} removed from game')
+        await sio.emit('update_game_state', {
+            'players': game_state_data['players'],
+            'all_minions': game_state_data['all_minions']
+        })
+        
+        print(f'Player {player_name} removed from game - all associated minions cleaned up')
     else:
         print(f'Client {sid} disconnected without joining game')
 

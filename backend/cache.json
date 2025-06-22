@@ -378,5 +378,49 @@
     "('strong', 'weak')": [
         "strong",
         "weak"
+    ],
+    "('george', 'weak george')": [
+        "weak george",
+        "george"
+    ],
+    "('george2', 'weak george')": [
+        "george2",
+        "weak george"
+    ],
+    "('george', 'george2')": [
+        "george2",
+        "george"
+    ],
+    "('george2', 'weask george')": [
+        "weask george",
+        "george2"
+    ],
+    "('weak george', 'weask george')": [
+        "weak george",
+        "weask george"
+    ],
+    "('george beater', 'george2')": [
+        "george beater",
+        "george2"
+    ],
+    "('strong', 'weakk')": [
+        "strong",
+        "weakk"
+    ],
+    "('strong', 'wakka')": [
+        "wakka",
+        "strong"
+    ],
+    "('wakka', 'weakkkk')": [
+        "weakkkk",
+        "wakka"
+    ],
+    "('strong', 'weakkkk')": [
+        "strong",
+        "weakkkk"
+    ],
+    "('wakka', 'wakka killer')": [
+        "wakka",
+        "wakka killer"
     ]
 }
